@@ -169,5 +169,4 @@ arcamage/
 
 [MIT](LICENSE)
 
----
-# Arcamage
+
