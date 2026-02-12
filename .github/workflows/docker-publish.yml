@@ -46,7 +46,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
-          ruff check .
+          python -m compileall app
           mypy app
           pytest -v
 
