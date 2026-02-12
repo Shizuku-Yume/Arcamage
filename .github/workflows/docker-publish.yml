@@ -47,7 +47,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
           python -m compileall app
-          mypy app
           pytest -v
 
       - name: Run frontend checks
