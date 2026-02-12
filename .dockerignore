@@ -1,0 +1,60 @@
+# Docker ignore file for Arcamage
+
+# Git
+.git
+.gitignore
+
+# Documentation (not needed in image)
+*.md
+!README.md
+docs/
+
+# Development files
+.env
+.env.*
+!.env.example
+
+# Python
+**/__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+.pytest_cache
+.mypy_cache
+.ruff_cache
+htmlcov
+.coverage
+*.egg-info
+.eggs
+venv
+.venv
+ENV
+backend/venv
+backend/static
+backend/tests
+frontend/dist
+
+# Frontend development
+frontend/node_modules
+frontend/.cache
+frontend/coverage
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test fixtures (large files)
+backend/tests/fixtures/golden_files/*.png
+
+# Temporary files
+*.tmp
+*.temp
+*.log

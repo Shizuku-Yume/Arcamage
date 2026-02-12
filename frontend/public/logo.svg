@@ -1,0 +1,67 @@
+<svg viewBox="0 0 200 300" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="cf-gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#e2e8f0"/>
+      <stop offset="30%" stop-color="#94a3b8"/>
+      <stop offset="60%" stop-color="#64748b"/>
+      <stop offset="100%" stop-color="#475569"/>
+    </linearGradient>
+    <linearGradient id="cf-gold-light" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#f8fafc"/>
+      <stop offset="50%" stop-color="#cbd5e1"/>
+      <stop offset="100%" stop-color="#94a3b8"/>
+    </linearGradient>
+    <linearGradient id="cf-green" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e293b"/>
+      <stop offset="50%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#020617"/>
+    </linearGradient>
+    <linearGradient id="cf-inner" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#334155"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+    <radialGradient id="cf-glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#94a3b8" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#94a3b8" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="cf-shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+
+  <rect x="10" y="10" width="180" height="280" rx="8" fill="url(#cf-green)" stroke="url(#cf-gold)" stroke-width="4" filter="url(#cf-shadow)"/>
+  <rect x="20" y="20" width="160" height="260" rx="4" fill="url(#cf-inner)" stroke="url(#cf-gold)" stroke-width="1.5"/>
+
+  <g transform="translate(100, 55)">
+    <circle cx="0" cy="0" r="22" fill="none" stroke="url(#cf-gold)" stroke-width="2"/>
+    <circle cx="0" cy="0" r="15" fill="none" stroke="url(#cf-gold)" stroke-width="1"/>
+    <path d="M0 -22 L4 -4 L22 0 L4 4 L0 22 L-4 4 L-22 0 L-4 -4 Z" fill="url(#cf-gold-light)"/>
+    <circle cx="0" cy="0" r="7" fill="url(#cf-green)" stroke="url(#cf-gold)" stroke-width="2"/>
+    <circle cx="0" cy="0" r="3.5" fill="url(#cf-gold-light)"/>
+  </g>
+
+  <ellipse cx="100" cy="165" rx="65" ry="85" fill="url(#cf-glow)"/>
+
+  <g transform="translate(100, 165)">
+    <ellipse cx="0" cy="70" rx="68" ry="15" fill="#000" opacity="0.3"/>
+    <ellipse cx="0" cy="60" rx="62" ry="15" fill="url(#cf-green)" stroke="url(#cf-gold)" stroke-width="2.5"/>
+    <ellipse cx="0" cy="58" rx="56" ry="13" fill="none" stroke="url(#cf-gold)" stroke-width="1"/>
+    <path d="M-42 60 L-34 -32 L34 -32 L42 60 Z" fill="url(#cf-green)" stroke="url(#cf-gold)" stroke-width="2.5"/>
+    <ellipse cx="0" cy="-32" rx="34" ry="8.5" fill="url(#cf-green)" stroke="url(#cf-gold)" stroke-width="2"/>
+    <path d="M-34 48 Q0 54, 34 48" fill="none" stroke="url(#cf-gold-light)" stroke-width="3"/>
+    
+    <g transform="translate(0, -48)">
+      <path d="M0 -30 L7 -11 L30 0 L7 11 L0 30 L-7 11 L-30 0 L-7 -11 Z" fill="url(#cf-gold-light)"/>
+      <circle cx="0" cy="0" r="8.5" fill="#fff"/>
+      <path d="M-36 -20 L-31 -11 L-22 -7 L-31 -3 L-36 6 L-41 -3 L-50 -7 L-41 -11 Z" fill="url(#cf-gold)"/>
+      <path d="M36 -14 L41 -5 L50 0 L41 5 L36 14 L31 5 L22 0 L31 -5 Z" fill="url(#cf-gold)"/>
+      <line x1="0" y1="-52" x2="0" y2="-38" stroke="url(#cf-gold-light)" stroke-width="2"/>
+      <line x1="-28" y1="-42" x2="-19" y2="-33" stroke="url(#cf-gold)" stroke-width="1.5"/>
+      <line x1="28" y1="-42" x2="19" y2="-33" stroke="url(#cf-gold)" stroke-width="1.5"/>
+      <circle cx="-42" cy="-37" r="3" fill="#fff"/>
+      <circle cx="44" cy="-30" r="2.2" fill="url(#cf-gold-light)"/>
+    </g>
+  </g>
+
+  <text x="100" y="275" text-anchor="middle" fill="url(#cf-gold-light)" font-size="22" font-family="Georgia, serif" font-weight="bold">I</text>
+</svg>

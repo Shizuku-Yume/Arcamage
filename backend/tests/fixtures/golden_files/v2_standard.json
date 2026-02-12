@@ -1,0 +1,18 @@
+{
+  "name": "TestChar V2",
+  "description": "A test character in V2 format.",
+  "personality": "Friendly and helpful",
+  "scenario": "A simple test scenario.",
+  "first_mes": "Hello! I'm a V2 format character. Nice to meet you!",
+  "mes_example": "<START>\n{{user}}: Hi!\n{{char}}: Hello there!",
+  "creator_notes": "V2 test character for migration testing.",
+  "system_prompt": "",
+  "post_history_instructions": "",
+  "alternate_greetings": [
+    "Greetings! How are you today?"
+  ],
+  "tags": ["v2", "test"],
+  "creator": "Arcamage Team",
+  "character_version": "1.0",
+  "extensions": {}
+}

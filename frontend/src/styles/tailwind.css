@@ -1,0 +1,1152 @@
+/* biome-ignore lint/suspicious/noUnknownAtRules: Tailwind directives are processed by PostCSS */
+@tailwind base;
+/* biome-ignore lint/suspicious/noUnknownAtRules: Tailwind directives are processed by PostCSS */
+@tailwind components;
+/* biome-ignore lint/suspicious/noUnknownAtRules: Tailwind directives are processed by PostCSS */
+@tailwind utilities;
+
+/* ============================================================
+   OverlayScrollbars 样式覆盖
+   ============================================================ */
+
+/* 滚动条手柄样式 */
+.os-scrollbar-handle {
+  background: rgba(161, 161, 170, 0.5) !important;
+  border-radius: 3px !important;
+}
+
+.os-scrollbar-handle:hover {
+  background: rgba(161, 161, 170, 0.7) !important;
+}
+
+.os-scrollbar-handle:active {
+  background: rgba(113, 113, 122, 0.8) !important;
+}
+
+/* 滚动条轨道透明 */
+.os-scrollbar-track {
+  background: transparent !important;
+}
+
+/* 滚动条宽度 */
+.os-scrollbar {
+  --os-size: 6px;
+  --os-padding-perpendicular: 0px;
+  --os-padding-axis: 2px;
+}
+
+/* 深色模式 */
+.dark .os-scrollbar-handle {
+  background: rgba(113, 113, 122, 0.5) !important;
+}
+
+.dark .os-scrollbar-handle:hover {
+  background: rgba(113, 113, 122, 0.7) !important;
+}
+
+.dark .os-scrollbar-handle:active {
+  background: rgba(161, 161, 170, 0.8) !important;
+}
+
+:root {
+  --accent-50: #f0fdfa;
+  --accent-100: #ccfbf1;
+  --accent-200: #99f6e4;
+  --accent-300: #5eead4;
+  --accent-400: #2dd4bf;
+  --accent-500: #14b8a6;
+  --accent-600: #0d9488;
+  --accent-700: #0f766e;
+  --accent-800: #115e59;
+  --accent-900: #134e4a;
+  --warning-light: #fffbeb;
+  --warning: #b45309;
+  --warning-dark: #92400e;
+  --info-light: #dbeafe;
+  --info: #1d4ed8;
+  --info-dark: #1e40af;
+  --success-light: #dcfce7;
+  --success: #15803d;
+  --success-dark: #14532d;
+  --danger-light: #fef2f2;
+  --danger: #b91c1c;
+  --danger-dark: #991b1b;
+}
+
+.dark {
+  --accent-50: #f0fdfa;
+  --accent-100: #ccfbf1;
+  --accent-200: #99f6e4;
+  --accent-300: #5eead4;
+  --accent-400: #2dd4bf;
+  --accent-500: #14b8a6;
+  --accent-600: #0d9488;
+  --accent-700: #0f766e;
+  --accent-800: #115e59;
+  --accent-900: #134e4a;
+  --warning-light: #fffbeb;
+  --warning: #b45309;
+  --warning-dark: #92400e;
+  --info-light: #dbeafe;
+  --info: #1d4ed8;
+  --info-dark: #1e40af;
+  --success-light: #dcfce7;
+  --success: #15803d;
+  --success-dark: #14532d;
+  --danger-light: #fef2f2;
+  --danger: #b91c1c;
+  --danger-dark: #991b1b;
+}
+
+/* ============================================================
+   全局基础样式
+   ============================================================ */
+
+html {
+  height: 100%;
+}
+
+body {
+  min-height: 100svh;
+  background-color: var(--bg-base);
+  background-image:
+    linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px),
+    linear-gradient(to right, var(--grid-line-strong) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid-line-strong) 1px, transparent 1px),
+    linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-mid) 55%, var(--bg-gradient-end) 100%),
+    linear-gradient(315deg, var(--bg-gradient-accent) 0%, transparent 65%);
+  background-size: 32px 32px, 32px 32px, 128px 128px, 128px 128px, 100% 100%, 100% 100%;
+  background-position: top left, top left, top left, top left, center center, center center;
+  background-repeat: repeat, repeat, repeat, repeat, no-repeat, no-repeat;
+  background-attachment: fixed;
+}
+
+@supports (height: 100dvh) {
+  body {
+    min-height: 100dvh;
+  }
+}
+
+:root {
+  --grid-line: rgba(24, 24, 27, 0.04);
+  --grid-line-strong: rgba(24, 24, 27, 0.07);
+  --bg-base: #fafafa;
+  --bg-gradient-start: color-mix(in srgb, var(--accent-50) 25%, #fafafa);
+  --bg-gradient-mid: color-mix(in srgb, var(--accent-100) 8%, #f7f7f7);
+  --bg-gradient-end: color-mix(in srgb, var(--accent-50) 18%, #fafafa);
+  --bg-gradient-accent: color-mix(in srgb, var(--accent-200) 6%, transparent);
+  --preview-text: #3f3f46;
+  --preview-bg: #fafafa;
+  --preview-surface: #f4f4f5;
+  --preview-surface-muted: #f9fafb;
+  --preview-border: #e4e4e7;
+  --preview-border-strong: #d4d4d8;
+  --preview-muted: #71717a;
+  --preview-heading: #18181b;
+  --preview-subtle: #52525b;
+  --preview-elevated: #ffffff;
+  --preview-scrollbar-thumb: rgb(212 212 216);
+  --preview-scrollbar-thumb-hover: rgb(161 161 170);
+}
+
+.dark {
+  --grid-line: rgba(255, 255, 255, 0.04);
+  --grid-line-strong: rgba(255, 255, 255, 0.07);
+  --bg-base: #18181b;
+  --bg-gradient-start: color-mix(in srgb, var(--accent-900) 14%, #18181b);
+  --bg-gradient-mid: color-mix(in srgb, var(--accent-800) 7%, #1f1f23);
+  --bg-gradient-end: color-mix(in srgb, var(--accent-900) 10%, #18181b);
+  --bg-gradient-accent: color-mix(in srgb, var(--accent-700) 6%, transparent);
+  --preview-text: #d4d4d8;
+  --preview-bg: #18181b;
+  --preview-surface: #27272a;
+  --preview-surface-muted: #1f1f23;
+  --preview-border: #3f3f46;
+  --preview-border-strong: #3f3f46;
+  --preview-muted: #a1a1aa;
+  --preview-heading: #fafafa;
+  --preview-subtle: #a1a1aa;
+  --preview-elevated: #27272a;
+  --preview-scrollbar-thumb: rgb(63 63 70);
+  --preview-scrollbar-thumb-hover: rgb(82 82 91);
+}
+
+/* ============================================================
+   Alpine.js x-cloak 隐藏
+   ============================================================ */
+
+[x-cloak] {
+  display: none !important;
+}
+
+/* ============================================================
+   自定义滚动条 (遵循 frontend_design.md §23)
+   ============================================================ */
+
+/* Webkit (Chrome, Safari, Edge) */
+.scrollbar-thin::-webkit-scrollbar,
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track,
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb,
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgb(212 212 216); /* zinc-300 */
+  border-radius: 3px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover,
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(161 161 170); /* zinc-400 */
+}
+
+/* Firefox */
+.scrollbar-thin,
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(212 212 216) transparent;
+}
+
+/* 隐藏滚动条 (仍可滚动) */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* 自动隐藏滚动条 (hover 时显示) */
+.scrollbar-auto {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.scrollbar-auto:hover {
+  scrollbar-color: rgb(212 212 216) transparent;
+}
+
+.scrollbar-auto::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.scrollbar-auto::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-auto::-webkit-scrollbar-thumb {
+  background-color: transparent;
+  border-radius: 3px;
+  transition: background-color 0.2s ease;
+}
+
+.scrollbar-auto:hover::-webkit-scrollbar-thumb {
+  background-color: rgb(212 212 216);
+}
+
+/* ============================================================
+   Autofill 样式修复
+   ============================================================ */
+
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+textarea:-webkit-autofill:hover,
+textarea:-webkit-autofill:focus,
+select:-webkit-autofill,
+select:-webkit-autofill:hover,
+select:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0px 1000px rgb(244 244 245) inset;
+  -webkit-text-fill-color: rgb(39 39 42);
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+/* 聚焦态的 autofill */
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill:focus,
+select:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0px 1000px rgb(255 255 255) inset;
+}
+
+/* ============================================================
+   无障碍焦点样式
+   ============================================================ */
+
+/* 
+ * 表单元素聚焦样式由组件自行处理（通过 focus: 类或 focus-within）
+ * 只保留按钮和链接的 :focus-visible 轮廓用于键盘导航无障碍
+ */
+button:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible {
+  outline: 2px solid var(--accent-700);
+  outline-offset: 2px;
+  border-radius: inherit;
+}
+
+/* 表单元素完全移除 outline，由各组件的 focus: 类处理高亮 */
+input:focus,
+input:focus-visible,
+textarea:focus,
+textarea:focus-visible,
+select:focus,
+select:focus-visible {
+  outline: none;
+}
+
+input.hide-password-reveal::-ms-reveal,
+input.hide-password-reveal::-ms-clear {
+  display: none;
+}
+
+input.hide-password-reveal::-webkit-credentials-auto-fill-button,
+input.hide-password-reveal::-webkit-strong-password-auto-fill-button {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* ============================================================
+   文本选择样式
+   ============================================================ */
+
+::selection {
+  background-color: var(--accent-200);
+  color: var(--accent-800);
+}
+
+::-moz-selection {
+  background-color: var(--accent-200);
+  color: var(--accent-800);
+}
+
+/* ============================================================
+   平滑滚动
+   ============================================================ */
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* ============================================================
+   骨架屏动画增强
+   ============================================================ */
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgb(228 228 231) 0%,
+    rgb(244 244 245) 50%,
+    rgb(228 228 231) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
+}
+
+/* ============================================================
+   拖放状态样式
+   ============================================================ */
+
+.drag-over {
+  border-color: var(--accent-700) !important;
+  background-color: var(--accent-50) !important;
+}
+
+.sortable-chosen {
+  box-shadow: 0 0 0 2px var(--accent-300);
+}
+
+.sortable-drag {
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+}
+
+/* ============================================================
+   Agent 生成中动画
+   ============================================================ */
+
+@keyframes agent-loading-wave {
+  0%,
+  100% {
+    color: var(--agent-wave-dim);
+    text-shadow: none;
+  }
+
+  50% {
+    color: var(--agent-wave-bright);
+    text-shadow: 0 0 0.2rem color-mix(in srgb, var(--agent-wave-bright) 14%, transparent);
+  }
+}
+
+.agent-loading-wave {
+  --agent-wave-dim: rgb(113 113 122 / 0.62);   /* zinc-500 */
+  --agent-wave-bright: rgb(63 63 70 / 0.96);   /* zinc-700 */
+
+  display: inline-flex;
+  align-items: center;
+  gap: 0.01em;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 1.4;
+}
+
+.agent-loading-wave-char {
+  color: var(--agent-wave-dim);
+  animation: agent-loading-wave 1.4s cubic-bezier(0.4, 0, 0.3, 1) infinite;
+  animation-delay: var(--agent-wave-delay, 0ms);
+  will-change: color, text-shadow;
+}
+
+.dark .agent-loading-wave {
+  --agent-wave-dim: rgb(161 161 170 / 0.66);  /* zinc-400 */
+  --agent-wave-bright: rgb(228 228 231 / 0.94); /* zinc-200 */
+}
+
+/* ============================================================
+   加载 Spinner 动画
+   ============================================================ */
+
+@keyframes spin-slow {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 1.5s linear infinite;
+}
+
+/* ============================================================
+   通用反馈动画
+   ============================================================ */
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 260ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+@keyframes shake-x-soft {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+
+  20% {
+    transform: translate3d(-6px, 0, 0);
+  }
+
+  40% {
+    transform: translate3d(4px, 0, 0);
+  }
+
+  60% {
+    transform: translate3d(-3px, 0, 0);
+  }
+
+  80% {
+    transform: translate3d(2px, 0, 0);
+  }
+}
+
+.animate-shake {
+  animation: shake-x-soft 360ms ease-out both;
+}
+
+/* ============================================================
+   层级 (z-index) 规范
+   ============================================================ */
+/*
+  z-10: 浮动操作按钮
+  z-20: 下拉菜单、Tooltip
+  z-30: 粘性头部
+  z-40: 导航栏
+  z-50: 常规模态层
+  z-55: 全局加载遮罩
+  z-59: 经典 modal 组件
+  z-60: Toast / 预设编辑弹层
+  z-70: Agent 全屏层
+  z-80+: Agent 内部二级/三级弹层
+*/
+
+/* ============================================================
+   杂项工具类
+   ============================================================ */
+
+/* 禁止文本选择 */
+.select-none-force {
+  -webkit-user-select: none !important;
+  -moz-user-select: none !important;
+  user-select: none !important;
+}
+
+/* 触控热区（移动端建议最小 44x44） */
+.tap-target {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+/* 强制换行 */
+.break-anywhere {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* 隐藏但保持无障碍 */
+.sr-only-focusable:not(:focus):not(:focus-within) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* 安全区域 padding (用于移动端刘海屏) */
+.safe-area-inset-top {
+  padding-top: env(safe-area-inset-top, 0);
+}
+
+.safe-area-inset-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+/* ============================================================
+   禁用动画 (尊重用户偏好)
+   ============================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ============================================================
+   深色模式样式
+   ============================================================ */
+
+/* 深色模式滚动条 */
+.dark .scrollbar-thin::-webkit-scrollbar,
+.dark .custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.dark .scrollbar-thin::-webkit-scrollbar-track,
+.dark .custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dark .scrollbar-thin::-webkit-scrollbar-thumb,
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgb(63 63 70); /* zinc-700 */
+  border-radius: 3px;
+}
+
+.dark .scrollbar-thin::-webkit-scrollbar-thumb:hover,
+.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(82 82 91); /* zinc-600 */
+}
+
+.dark .scrollbar-thin,
+.dark .custom-scrollbar {
+  scrollbar-color: rgb(63 63 70) transparent;
+}
+
+/* 深色模式全局滚动条 (for elements using native scrollbar) */
+.dark ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: rgb(39 39 42); /* zinc-800 */
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background-color: rgb(63 63 70); /* zinc-700 */
+  border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(82 82 91); /* zinc-600 */
+}
+
+/* Firefox 全局滚动条深色模式 */
+@supports (scrollbar-color: auto) {
+  .dark * {
+    scrollbar-color: rgb(63 63 70) rgb(39 39 42);
+  }
+}
+
+.dark .scrollbar-auto:hover {
+  scrollbar-color: rgb(63 63 70) transparent;
+}
+
+.dark .scrollbar-auto:hover::-webkit-scrollbar-thumb {
+  background-color: rgb(63 63 70);
+}
+
+/* 深色模式 Autofill 修复 */
+.dark input:-webkit-autofill,
+.dark input:-webkit-autofill:hover,
+.dark input:-webkit-autofill:focus,
+.dark textarea:-webkit-autofill,
+.dark textarea:-webkit-autofill:hover,
+.dark textarea:-webkit-autofill:focus,
+.dark select:-webkit-autofill,
+.dark select:-webkit-autofill:hover,
+.dark select:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0px 1000px rgb(39 39 42) inset; /* zinc-800 */
+  -webkit-text-fill-color: rgb(244 244 245); /* zinc-100 */
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+.dark input:-webkit-autofill:focus,
+.dark textarea:-webkit-autofill:focus,
+.dark select:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0px 1000px rgb(63 63 70) inset; /* zinc-700 */
+}
+
+/* 深色模式焦点样式 */
+.dark button:focus-visible,
+.dark a:focus-visible,
+.dark [role="button"]:focus-visible {
+  outline: 2px solid var(--accent-400);
+  outline-offset: 2px;
+}
+
+/* 深色模式文本选择 */
+.dark ::selection {
+  background-color: var(--accent-800);
+  color: var(--accent-100);
+}
+
+.dark ::-moz-selection {
+  background-color: var(--accent-800);
+  color: var(--accent-100);
+}
+
+/* 深色模式骨架屏 */
+.dark .skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgb(63 63 70) 0%,
+    rgb(82 82 91) 50%,
+    rgb(63 63 70) 100%
+  );
+  background-size: 200% 100%;
+}
+
+/* 深色模式拖放 */
+.dark .drag-over {
+  border-color: var(--accent-400) !important;
+  background-color: color-mix(in srgb, var(--accent-800) 30%, transparent) !important;
+}
+
+.dark .sortable-chosen {
+  box-shadow: 0 0 0 2px var(--accent-400);
+}
+
+/* 深色模式 Neo-matte 阴影组件类 */
+@layer components {
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.75rem;
+    background-color: var(--accent-700);
+    color: #fff;
+    box-shadow: 0 4px 20px -4px rgba(0, 0, 0, 0.05), 0 -2px 10px -2px rgba(255, 255, 255, 0.8);
+    transition: all 0.2s ease;
+  }
+
+  .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.75rem;
+    border: 1px solid rgb(228 228 231);
+    background-color: rgb(255 255 255 / 0.8);
+    color: rgb(82 82 91);
+    transition: all 0.2s ease;
+  }
+
+  .btn-danger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.75rem;
+    border: 1px solid rgb(254 202 202);
+    background-color: #fff;
+    color: rgb(220 38 38);
+    transition: background-color 0.2s ease;
+  }
+
+  .btn-danger-solid {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.75rem;
+    background-color: rgb(220 38 38);
+    color: #fff;
+    transition: background-color 0.2s ease;
+  }
+
+  .alert-warning-soft {
+    border-radius: 0.75rem;
+    border: 1px solid var(--warning);
+    background-color: var(--warning-light);
+    color: var(--warning);
+  }
+
+  .alert-success-soft {
+    border-radius: 0.75rem;
+    border: 1px solid var(--success);
+    background-color: var(--success-light);
+    color: var(--success);
+  }
+
+  .alert-danger-soft {
+    border-radius: 0.75rem;
+    border: 1px solid var(--danger);
+    background-color: var(--danger-light);
+    color: var(--danger);
+  }
+
+  .btn-icon-ghost {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.75rem;
+    border: 1px solid rgb(228 228 231);
+    color: rgb(113 113 122);
+    transition: color 0.2s ease, background-color 0.2s ease;
+  }
+
+  .btn-primary:hover {
+    background-color: var(--accent-800);
+    box-shadow: 0 6px 24px -4px rgba(0, 0, 0, 0.08), 0 -2px 12px -2px rgba(255, 255, 255, 0.9);
+  }
+
+  .btn-secondary:hover {
+    background-color: rgb(244 244 245);
+  }
+
+  .btn-danger:hover {
+    background-color: rgb(254 242 242);
+  }
+
+  .btn-danger-solid:hover {
+    background-color: rgb(185 28 28);
+  }
+
+  .btn-icon-ghost:hover {
+    color: rgb(63 63 70);
+    background-color: rgb(244 244 245);
+  }
+
+  .btn-primary:active:not(:disabled),
+  .btn-secondary:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+
+  .btn-primary:disabled,
+  .btn-secondary:disabled,
+  .btn-danger:disabled,
+  .btn-danger-solid:disabled,
+  .btn-icon-ghost:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .btn-primary:focus-visible,
+  .btn-secondary:focus-visible,
+  .btn-danger:focus-visible,
+  .btn-danger-solid:focus-visible,
+  .btn-icon-ghost:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--accent-200) 65%, transparent);
+    outline-offset: 2px;
+  }
+
+  .dark .btn-primary {
+    background-color: var(--accent-600);
+    box-shadow: 0 4px 20px -4px rgba(0, 0, 0, 0.4), 0 -2px 10px -2px rgba(255, 255, 255, 0.05);
+  }
+
+  .dark .btn-primary:hover {
+    background-color: var(--accent-500);
+    box-shadow: 0 6px 24px -4px rgba(0, 0, 0, 0.5), 0 -2px 12px -2px rgba(255, 255, 255, 0.08);
+  }
+
+  .dark .btn-secondary {
+    border-color: rgb(63 63 70);
+    background-color: rgb(39 39 42 / 0.8);
+    color: rgb(228 228 231);
+  }
+
+  .dark .btn-secondary:hover {
+    background-color: rgb(63 63 70);
+  }
+
+  .dark .btn-danger {
+    border-color: rgb(127 29 29 / 0.6);
+    background-color: rgb(69 10 10 / 0.1);
+    color: rgb(252 165 165);
+  }
+
+  .dark .btn-danger:hover {
+    background-color: rgb(127 29 29 / 0.2);
+  }
+
+  .dark .alert-warning-soft {
+    border-color: rgb(180 83 9 / 0.55);
+    background-color: rgb(120 53 15 / 0.14);
+    color: rgb(253 186 116);
+  }
+
+  .dark .alert-success-soft {
+    border-color: rgb(21 128 61 / 0.6);
+    background-color: rgb(20 83 45 / 0.16);
+    color: rgb(134 239 172);
+  }
+
+  .dark .alert-danger-soft {
+    border-color: rgb(127 29 29 / 0.6);
+    background-color: rgb(69 10 10 / 0.14);
+    color: rgb(252 165 165);
+  }
+
+  .dark .btn-icon-ghost {
+    border-color: rgb(63 63 70);
+    color: rgb(161 161 170);
+  }
+
+  .dark .btn-icon-ghost:hover {
+    color: rgb(228 228 231);
+    background-color: rgb(39 39 42);
+  }
+
+  .dark .btn-primary:focus-visible,
+  .dark .btn-secondary:focus-visible,
+  .dark .btn-danger:focus-visible,
+  .dark .btn-danger-solid:focus-visible,
+  .dark .btn-icon-ghost:focus-visible {
+    outline-color: color-mix(in srgb, var(--accent-700) 35%, transparent);
+  }
+
+  .agent-diff-inline-add {
+    background-color: color-mix(in srgb, var(--success-light) 34%, transparent);
+    color: rgb(63 63 70);
+  }
+
+  .agent-diff-inline-del {
+    background-color: color-mix(in srgb, var(--danger-light) 34%, transparent);
+    color: rgb(63 63 70);
+  }
+
+  .agent-diff-op-add {
+    background-color: color-mix(in srgb, var(--success-light) 38%, transparent);
+    color: color-mix(in srgb, var(--success) 56%, rgb(82 82 91));
+  }
+
+  .agent-diff-op-remove {
+    background-color: color-mix(in srgb, var(--danger-light) 38%, transparent);
+    color: color-mix(in srgb, var(--danger) 56%, rgb(82 82 91));
+  }
+
+  .agent-diff-op-move {
+    background-color: color-mix(in srgb, var(--accent-100) 48%, transparent);
+    color: color-mix(in srgb, var(--accent-700) 68%, rgb(82 82 91));
+  }
+
+  .agent-diff-stat-add {
+    background-color: color-mix(in srgb, var(--success-light) 40%, transparent);
+    color: color-mix(in srgb, var(--success) 58%, rgb(82 82 91));
+  }
+
+  .agent-diff-stat-del {
+    background-color: color-mix(in srgb, var(--danger-light) 40%, transparent);
+    color: color-mix(in srgb, var(--danger) 58%, rgb(82 82 91));
+  }
+
+  .agent-diff-row-add {
+    border-color: color-mix(in srgb, var(--success) 70%, transparent);
+    background-color: transparent;
+    box-shadow: inset 1px 0 0 color-mix(in srgb, var(--success) 56%, transparent);
+  }
+
+  .agent-diff-row-del {
+    border-color: color-mix(in srgb, var(--danger) 96%, transparent);
+    background-color: transparent;
+    box-shadow: inset 1px 0 0 color-mix(in srgb, var(--danger) 80%, transparent);
+  }
+
+  .agent-diff-gutter-add {
+    color: color-mix(in srgb, var(--success) 52%, rgb(82 82 91));
+  }
+
+  .agent-diff-gutter-del {
+    color: color-mix(in srgb, var(--danger) 52%, rgb(82 82 91));
+  }
+
+  .agent-diff-sign-add {
+    color: color-mix(in srgb, var(--success) 94%, rgb(22 163 74));
+    font-weight: 700;
+    font-size: 0.9rem;
+    line-height: 1;
+  }
+
+  .agent-diff-sign-del {
+    color: color-mix(in srgb, var(--danger) 94%, rgb(220 38 38));
+    font-weight: 700;
+    font-size: 0.9rem;
+    line-height: 1;
+  }
+
+  .agent-diff-item {
+    transition: border-color 0.16s ease, background-color 0.16s ease, box-shadow 0.16s ease;
+  }
+
+  .agent-diff-item:focus-visible {
+    outline: none;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-400) 58%, transparent);
+  }
+
+  .agent-diff-item-selected {
+    border-color: color-mix(in srgb, var(--accent-500) 76%, transparent);
+    background-color: transparent;
+    box-shadow: none;
+  }
+
+  .dark .agent-diff-inline-add {
+    background-color: color-mix(in srgb, var(--success) 22%, transparent);
+    color: color-mix(in srgb, var(--success-light) 62%, rgb(212 212 216));
+  }
+
+  .dark .agent-diff-inline-del {
+    background-color: color-mix(in srgb, var(--danger) 22%, transparent);
+    color: color-mix(in srgb, var(--danger-light) 62%, rgb(212 212 216));
+  }
+
+  .dark .agent-diff-op-add {
+    background-color: color-mix(in srgb, var(--success) 24%, transparent);
+    color: color-mix(in srgb, var(--success-light) 66%, rgb(212 212 216));
+  }
+
+  .dark .agent-diff-op-remove {
+    background-color: color-mix(in srgb, var(--danger) 24%, transparent);
+    color: color-mix(in srgb, var(--danger-light) 66%, rgb(212 212 216));
+  }
+
+  .dark .agent-diff-op-move {
+    background-color: color-mix(in srgb, var(--accent-900) 34%, transparent);
+    color: color-mix(in srgb, var(--accent-300) 70%, rgb(212 212 216));
+  }
+
+  .dark .agent-diff-stat-add {
+    background-color: color-mix(in srgb, var(--success) 24%, transparent);
+    color: color-mix(in srgb, var(--success-light) 68%, rgb(212 212 216));
+  }
+
+  .dark .agent-diff-stat-del {
+    background-color: color-mix(in srgb, var(--danger) 24%, transparent);
+    color: color-mix(in srgb, var(--danger-light) 68%, rgb(212 212 216));
+  }
+
+  .dark .agent-diff-row-add {
+    border-color: color-mix(in srgb, var(--success-light) 44%, var(--success));
+    background-color: transparent;
+    box-shadow: inset 1px 0 0 color-mix(in srgb, var(--success-light) 30%, var(--success));
+  }
+
+  .dark .agent-diff-row-del {
+    border-color: color-mix(in srgb, var(--danger-light) 52%, var(--danger));
+    background-color: transparent;
+    box-shadow: inset 1px 0 0 color-mix(in srgb, var(--danger-light) 38%, var(--danger));
+  }
+
+  .dark .agent-diff-gutter-add {
+    color: color-mix(in srgb, var(--success-light) 42%, var(--success));
+  }
+
+  .dark .agent-diff-gutter-del {
+    color: color-mix(in srgb, var(--danger-light) 42%, var(--danger));
+  }
+
+  .dark .agent-diff-sign-add {
+    color: color-mix(in srgb, var(--success-light) 36%, var(--success));
+    font-weight: 700;
+    font-size: 0.9rem;
+    line-height: 1;
+  }
+
+  .dark .agent-diff-sign-del {
+    color: color-mix(in srgb, var(--danger-light) 36%, var(--danger));
+    font-weight: 700;
+    font-size: 0.9rem;
+    line-height: 1;
+  }
+
+  .dark .agent-diff-item:focus-visible {
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-400) 42%, transparent);
+  }
+
+  .dark .agent-diff-item-selected {
+    border-color: color-mix(in srgb, var(--accent-400) 62%, transparent);
+    background-color: transparent;
+    box-shadow: none;
+  }
+
+}
+
+/* ============================================================
+   自定义 Select 下拉框样式
+   ============================================================ */
+
+/* 自定义下拉箭头 */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2371717a' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 0.5rem center;
+  background-repeat: no-repeat;
+  background-size: 1.25em 1.25em;
+  padding-right: 2.25rem;
+}
+
+.dark select {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23a1a1aa' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+}
+
+/* Select 下拉菜单样式 (WebKit/Blink) */
+select option {
+  padding: 0.5rem 0.75rem;
+  background-color: white;
+  color: rgb(63 63 70);
+}
+
+.dark select option {
+  background-color: rgb(39 39 42);
+  color: rgb(228 228 231);
+}
+
+select option:checked {
+  background-color: var(--accent-50);
+  color: var(--accent-700);
+}
+
+.dark select option:checked {
+  background-color: var(--accent-800);
+  color: var(--accent-100);
+}
+
+/* ============================================================
+   自定义 Checkbox 样式
+   ============================================================ */
+
+/* 隐藏原生 checkbox */
+input[type="checkbox"].neo-checkbox {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 0.25rem;
+  border: 1.5px solid rgb(212 212 216);
+  background-color: white;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  position: relative;
+  flex-shrink: 0;
+}
+
+input[type="checkbox"].neo-checkbox:hover {
+  border-color: rgb(161 161 170);
+}
+
+input[type="checkbox"].neo-checkbox:checked {
+  background-color: var(--accent-700);
+  border-color: var(--accent-700);
+}
+
+input[type="checkbox"].neo-checkbox:checked::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 45%;
+  width: 5px;
+  height: 9px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: translate(-50%, -50%) rotate(45deg);
+  transform-origin: center;
+}
+
+input[type="checkbox"].neo-checkbox:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-200) 50%, transparent);
+}
+
+/* 深色模式 checkbox */
+.dark input[type="checkbox"].neo-checkbox {
+  background-color: rgb(63 63 70);
+  border-color: rgb(82 82 91);
+}
+
+.dark input[type="checkbox"].neo-checkbox:hover {
+  border-color: rgb(113 113 122);
+}
+
+.dark input[type="checkbox"].neo-checkbox:checked {
+  background-color: var(--accent-500);
+  border-color: var(--accent-500);
+}
+
+.dark input[type="checkbox"].neo-checkbox:focus {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-400) 30%, transparent);
+}
+
+input[type="checkbox"]:not(.neo-checkbox) {
+  accent-color: var(--accent-700);
+}
+
+.dark input[type="checkbox"]:not(.neo-checkbox) {
+  accent-color: var(--accent-500);
+}

@@ -1,0 +1,28 @@
+{
+  "spec": "chara_card_v3",
+  "spec_version": "3.0",
+  "data": {
+    "name": "XSS Test Character",
+    "description": "A character designed to test XSS protection.\n<script>alert('XSS')</script>\n<img src=x onerror=alert('XSS')>",
+    "tags": ["test", "security"],
+    "creator": "Security Tester",
+    "character_version": "1.0",
+    "mes_example": "",
+    "extensions": {},
+    "system_prompt": "",
+    "post_history_instructions": "",
+    "first_mes": "<script>document.write('Injected!')</script><p>Normal greeting text</p><iframe src='javascript:alert(1)'></iframe>",
+    "alternate_greetings": [
+      "<object data='javascript:alert(1)'></object>Hello!",
+      "Normal greeting without XSS"
+    ],
+    "personality": "Test<script>alert(1)</script>Personality",
+    "scenario": "<embed src='data:text/html,<script>alert(1)</script>'>Scenario",
+    "creator_notes": "",
+    "character_book": null,
+    "assets": [],
+    "nickname": "",
+    "source": [],
+    "group_only_greetings": []
+  }
+}

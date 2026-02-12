@@ -1,0 +1,50 @@
+# Arcamage Docker Compose Configuration
+services:
+  arcamage:
+    image: arcamage:local
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    restart: unless-stopped
+    init: true
+    ports:
+      - "${ARCAMAGE_PORT:-8000}:8000"
+    environment:
+      ARCAMAGE_DEBUG: "${ARCAMAGE_DEBUG:-false}"
+      ARCAMAGE_MAX_UPLOAD_MB: "${ARCAMAGE_MAX_UPLOAD_MB:-20}"
+      ARCAMAGE_HTTP_TIMEOUT: "${ARCAMAGE_HTTP_TIMEOUT:-30}"
+      ARCAMAGE_LOG_LEVEL: "${ARCAMAGE_LOG_LEVEL:-INFO}"
+      ARCAMAGE_LOG_REDACT: "${ARCAMAGE_LOG_REDACT:-true}"
+      ARCAMAGE_CORS_ORIGINS: "${ARCAMAGE_CORS_ORIGINS:-*}"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    cpus: 2.0
+    mem_limit: 512m
+    stop_grace_period: 20s
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# Optional: Add nginx reverse proxy for production
+# Uncomment below if you need nginx in front
+
+#   nginx:
+#     image: nginx:alpine
+#     container_name: arcamage-nginx
+#     restart: unless-stopped
+#     ports:
+#       - "80:80"
+#       - "443:443"
+#     volumes:
+#       - ./nginx.conf:/etc/nginx/nginx.conf:ro
+#       - ./certs:/etc/nginx/certs:ro
+#     depends_on:
+#       - arcamage
