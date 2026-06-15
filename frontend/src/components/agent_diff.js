@@ -97,6 +97,12 @@ function resolveDiffPathLabel(path) {
     const suffix = path.slice('skills/'.length) || path;
     return `技能文件 · ${suffix}`;
   }
+  const lorebookEntryMatch = path.match(/^data\.character_book\.entries\[id=([^\]]+)\](?:\.(.+))?$/);
+  if (lorebookEntryMatch) {
+    const entryId = lorebookEntryMatch[1];
+    const field = lorebookEntryMatch[2] ? ` · ${lorebookEntryMatch[2]}` : '';
+    return `世界书条目 · ${entryId}${field}`;
+  }
   const normalized = String(path).replace(/\[(\d+)\]/g, '.$1').trim();
   if (!normalized) return String(path);
 

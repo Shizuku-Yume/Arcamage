@@ -580,6 +580,7 @@ const BASE_ALLOWED_TAGS = [
   'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
   'ul', 'ol', 'li', 'blockquote', 'pre', 'code',
   'hr', 'img', 'table', 'thead', 'tbody', 'tr', 'th', 'td',
+  'audio', 'video', 'source',
   'sup', 'sub', 'mark', 'small',
   'details', 'summary', 'section', 'article', 'header', 'footer', 'main',
   'figure', 'figcaption', 'ruby', 'rt', 'rp', 'kbd', 'time', 'del', 'ins',
@@ -588,6 +589,7 @@ const BASE_ALLOWED_TAGS = [
 const BASE_ALLOWED_ATTR = [
   'href', 'target', 'rel', 'class', 'id', 'style',
   'src', 'alt', 'title', 'width', 'height',
+  'controls', 'autoplay', 'loop', 'muted', 'playsinline', 'poster', 'preload', 'type',
   'colspan', 'rowspan',
   'open', 'align', 'valign', 'bgcolor', 'cellpadding', 'cellspacing',
   'face', 'size',
@@ -1063,7 +1065,7 @@ export function generateIframeContent(content, options = {}) {
   ].filter(Boolean).join(' ');
   const themeTokenOverrides = buildPreviewThemeTokenOverrides();
   const injectedStyles = buildInjectedStyleTags(prepared.styleBlocks);
-  
+
   return `
 <!DOCTYPE html>
 <html>
@@ -1127,54 +1129,10 @@ export function previewPanelComponent(options = {}) {
 }
 
 /**
- * Greeting 预览组件 (专门用于开场白预览)
- */
-export function greetingPreviewComponent() {
-  return {
-    isVisible: false,
-    currentGreeting: '',
-    currentIndex: -1,
-    
-    get isDarkMode() {
-      return document.documentElement.classList.contains('dark');
-    },
-    
-    get iframeContent() {
-      return generateIframeContent(this.currentGreeting, { markdown: true, darkMode: this.isDarkMode });
-    },
-    
-    showFirstMes() {
-      const cardStore = Alpine.store('card');
-      this.currentGreeting = cardStore?.data?.data?.first_mes || '';
-      this.currentIndex = -1;
-      this.isVisible = true;
-    },
-    
-    showAlternate(index) {
-      const cardStore = Alpine.store('card');
-      const greetings = cardStore?.data?.data?.alternate_greetings || [];
-      this.currentGreeting = greetings[index] || '';
-      this.currentIndex = index;
-      this.isVisible = true;
-    },
-    
-    close() {
-      this.isVisible = false;
-    },
-    
-    get title() {
-      if (this.currentIndex === -1) return '开场白预览';
-      return `备选开场白 #${this.currentIndex + 1} 预览`;
-    },
-  };
-}
-
-/**
  * 注册预览组件
  */
 export function registerPreviewComponents() {
   Alpine.data('previewPanel', previewPanelComponent);
-  Alpine.data('greetingPreview', greetingPreviewComponent);
 }
 
 /**
@@ -1235,65 +1193,12 @@ export function generatePreviewPanelHTML() {
   `;
 }
 
-/**
- * 生成 Greeting 预览面板 HTML
- * @returns {string} HTML 字符串
- */
-export function generateGreetingPreviewHTML() {
-  return `
-<!-- Greeting 预览面板 -->
-<div x-data="greetingPreview()"
-     x-show="isVisible"
-     x-transition:enter="transition ease-out duration-200"
-     x-transition:enter-start="opacity-0"
-     x-transition:enter-end="opacity-100"
-     x-transition:leave="transition ease-in duration-150"
-     x-transition:leave-start="opacity-100"
-     x-transition:leave-end="opacity-0"
-     class="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 safe-area-inset-top safe-area-inset-bottom"
-     x-cloak
-     @greeting-preview.window="currentGreeting = $event.detail.content; currentIndex = $event.detail.index ?? -1; isVisible = true">
-  
-  <!-- 遮罩 -->
-  <div class="absolute inset-0 bg-zinc-900/50 dark:bg-zinc-950/70 backdrop-blur-sm" @click="close()"></div>
-  
-  <!-- 内容 -->
-   <div class="relative bg-white dark:bg-zinc-900 rounded-neo-lg border border-zinc-200 dark:border-zinc-700 shadow-neo-lift dark:shadow-neo-lift-dark w-full max-w-3xl max-h-[calc(100dvh-1rem)] sm:max-h-[calc(100dvh-2rem)] flex flex-col">
-    
-    <!-- 头部 -->
-     <div class="flex items-center justify-between px-6 py-4 border-b border-zinc-200 dark:border-zinc-700 bg-zinc-50/90 dark:bg-zinc-800/90">
-        <h3 class="text-lg font-semibold text-zinc-800 dark:text-zinc-100" x-text="title"></h3>
-        <div class="flex items-center text-zinc-600 dark:text-zinc-300">
-          <!-- 关闭按钮 -->
-          <button @click="close()" class="p-1 text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-200">
-           <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
-           </svg>
-        </button>
-      </div>
-    </div>
-    
-    <!-- iframe 容器 -->
-    <div class="flex-1 overflow-hidden p-4">
-      <iframe
-        :srcdoc="iframeContent"
-        sandbox=""
-        class="w-full h-full min-h-[240px] sm:min-h-[360px] border-0 rounded-neo bg-zinc-50 dark:bg-zinc-900">
-      </iframe>
-    </div>
-  </div>
-</div>
-  `;
-}
-
 export default {
   sanitizeHTML,
   renderMarkdown,
   renderContent,
   generateIframeContent,
   previewPanelComponent,
-  greetingPreviewComponent,
   registerPreviewComponents,
   generatePreviewPanelHTML,
-  generateGreetingPreviewHTML,
 };

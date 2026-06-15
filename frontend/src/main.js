@@ -34,9 +34,13 @@ import { registerContentScannerComponent } from './components/modal_sanitize.js'
 import { registerAutoSaveComponent } from './components/auto_save.js';
 import { registerTokenBadgeComponents } from './components/token_badge.js';
 import { registerTextCleanerComponent } from './components/text_cleaner.js';
-import { registerPreviewComponents, generateGreetingPreviewHTML } from './components/preview_panel.js';
+import { registerPreviewComponents } from './components/preview_panel.js';
 import { registerAgentSidebarComponent } from './components/agent_sidebar.js';
-import { registerGreetingSidebarComponent } from './components/greeting_sidebar.js';
+import {
+  registerCardPreviewSidebarComponent,
+  getCardPreviewSidebarHTML,
+  getCardPreviewModalHTML,
+} from './components/card_preview_sidebar.js';
 import { registerAgentModalComponent, getAgentModalHTML } from './components/agent_modal.js';
 
 // P2 世界书组件
@@ -90,7 +94,7 @@ registerTokenBadgeComponents();
 registerTextCleanerComponent();
 registerPreviewComponents();
 registerAgentSidebarComponent();
-registerGreetingSidebarComponent();
+registerCardPreviewSidebarComponent();
 registerAgentModalComponent();
 
 // 注册世界书组件
@@ -118,8 +122,21 @@ window.getFerryModalHTML = getFerryModalHTML;
 window.getToastContainerHTML = getToastContainerHTML;
 window.getLoadingOverlayHTML = getLoadingOverlayHTML;
 window.getModalContainerHTML = getModalContainerHTML;
-window.generateGreetingPreviewHTML = generateGreetingPreviewHTML;
+window.getCardPreviewSidebarHTML = getCardPreviewSidebarHTML;
+window.getCardPreviewModalHTML = getCardPreviewModalHTML;
+window.cardPreviewSidebarHTML = getCardPreviewSidebarHTML();
+window.cardPreviewModalHTML = getCardPreviewModalHTML();
 window.getAgentModalHTML = getAgentModalHTML;
+
+const cardPreviewSidebarHost = document.getElementById('card-preview-sidebar-host');
+if (cardPreviewSidebarHost) {
+  cardPreviewSidebarHost.innerHTML = window.cardPreviewSidebarHTML;
+}
+
+const cardPreviewModalHost = document.getElementById('card-preview-modal-host');
+if (cardPreviewModalHost) {
+  cardPreviewModalHost.innerHTML = window.cardPreviewModalHTML;
+}
 
 const agentModalHost = document.getElementById('agent-modal-host');
 if (agentModalHost) {
@@ -307,7 +324,6 @@ export {
   renderMarkdown, 
   renderContent,
   generatePreviewPanelHTML,
-  generateGreetingPreviewHTML,
 } from './components/preview_panel.js';
 
 // P2 世界书组件导出

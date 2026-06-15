@@ -5,14 +5,21 @@
  */
 
 import Alpine from 'alpinejs';
-import { deepClone, getByPath, setByPath } from '../store.js';
+import { deepClone, deepEqual, getByPath, setByPath } from '../store.js';
 import { validateCard } from '../api.js';
-import { completeChat, streamCompleteChat } from './ai_client.js';
 import { REGISTRY_VERSION } from '../agent/field_registry.js';
 import { executeToolCall, getToolDefinitions, TOOL_LIMITS } from '../agent/tool_executor.js';
 import { recordToolEvent } from '../agent/tool_logger.js';
 import { buildDelta, buildSnapshot, DEFAULT_SNAPSHOT_PATHS } from '../agent/snapshot_provider.js';
 import { createEmptySkillContextMeta, buildSkillContext } from '../agent/skill_context.js';
+import { requestAssistantTurn } from '../agent/llm/client.js';
+import {
+  assistantTurnToInternalMessage,
+  createInternalTextMessage,
+  toInternalMessages,
+  toolResultToInternalMessage,
+} from '../agent/llm/messages.js';
+import { resolveTransport } from '../agent/llm/model.js';
 import {
   exportSkillRepositoryState,
   importSkillRepositoryState,
@@ -23,67 +30,22 @@ import { SKILL_GUARDRAIL_PROMPT } from '../agent/skill_constants.js';
 
 const MACRO_REGEX = /\{\{\s*[^}]+\s*\}\}/g;
 const HTML_REGEX = /<[^>]+>/g;
-const TOOL_SYSTEM_PROMPT = `你是 Arcamage 的 AI 角色卡助手，专门帮助用户创建、分析和优化 SillyTavern 角色卡。
+const TOOL_SYSTEM_PROMPT = `你是 Arcamage 的 AI 角色卡助手，帮助用户创建、分析和优化 SillyTavern 角色卡。
 
-## 你的能力
-
-你可以：
-- **阅读分析** - 读取卡片字段，分析角色设定、写作风格、叙事结构
-- **创作辅助** - 翻译、润色、扩写、优化角色描述和对话
-- **模拟体验** - 基于角色设定模拟对话风格，帮助用户预览角色表现
-- **教学指导** - 解释字段作用、最佳实践、常见问题
-- **诊断修复** - 发现设定矛盾、建议改进方案
-
-## 角色卡核心字段速查
-
-| 字段 | 用途 | 建议 |
-|------|------|------|
-| name | 角色名 | 简洁有辨识度 |
-| description | 外貌/背景/性格详述 | AI理解角色的主要来源 |
-| personality | 性格特征速写 | 简明扼要的关键词 |
-| scenario | 场景设定 | 角色所处的世界和情境 |
-| first_mes | 开场白 | 第一印象，定调全局 |
-| mes_example | 对话示例 | 教AI如何扮演此角色 |
-| system_prompt | 系统指令 | 高级用户的行为控制 |
-| alternate_greetings | 备选开场白 | 多样化互动入口 |
-| character_book | 世界书/Lorebook | 动态知识库 |
-
-## 工作流程
-
-**判断用户意图后选择模式：**
-
-1. **修改模式**（用户要求编辑、翻译、优化等）
-   - 先用 list_fields/view_field 确认当前值
-   - 使用 edit_field/set_field/append_entry 等完成修改
-   - 给出一句话摘要
-
-2. **分析模式**（用户要求分析、评价、解释等）
-   - 用 view_field 读取相关字段
-   - 直接给出分析结论，无需工具修改
-
-3. **模拟模式**（用户要求模拟对话、预览体验等）
-   - 读取 personality、first_mes、mes_example 等
-   - 基于角色设定生成示范性对话
-
-4. **附件参考**（用户提供参考资料时）
-   - 先 list_refs 查看附件列表
-   - 用 view_ref/search_ref 检索内容
-   - 结合附件和卡片字段完成任务
-
-## 约束
-
-- 使用工具访问字段，不要编造路径
-- remove_entry 的 path 必须包含数组索引 [index]
-- 对 risk>=medium 字段（如 first_mes、system_prompt）修改时使用 old_hash
-- 保留原有宏（如 {{user}}、{{char}}）和 HTML 标签
-- 不输出代码块，用自然语言交流
-`;
+规则：
+- 修改前读取必要字段、片段或世界书条目，不要读取整本世界书。
+- 普通卡字段使用 card_* 工具；data.character_book 必须使用 lorebook_* 工具。
+- 长字符串小改动优先使用 card_patch_text 或 lorebook_patch_entry。
+- 世界书条目优先使用稳定 id；name 不唯一时改用候选 id。
+- 保留原有宏（如 {{user}}、{{char}}）和 HTML 标签。
+- 使用附件资料前先 ref_list，再 ref_read 或 ref_search。
+- 完成后用简短自然语言总结，不输出代码块。`;
 
 const SKILL_TOOL_SYSTEM_PROMPT = `当技能工具可用时，你可以直接管理本地技能仓：
-- list_skills: 列出技能目录
-- view_skill: 读取技能（description/content/references）
-- save_skill: 创建或更新技能；支持通过 previous_skill_id 重命名
-- delete_skill: 删除技能
+- skill_list: 列出技能目录
+- skill_read: 读取技能（description/content/references）
+- skill_upsert: 创建或更新技能；支持通过 previous_skill_id 重命名
+- skill_delete: 删除技能
 
 技能工具约束：
 - skill_id / reference_name 必须是安全标识符（中英文字母数字空格/_/-）
@@ -100,34 +62,8 @@ function getToolCallLimit() {
 }
 
 const CAS_RECOVERABLE_ERRORS = new Set(['E_PRECONDITION_FAILED', 'E_CAS_MISMATCH']);
-const CAS_RECOVERABLE_TOOLS = new Set([
-  'edit_field',
-  'set_field',
-  'clear_field',
-  'append_entry',
-  'remove_entry',
-  'move_entry',
-]);
 
 const TOOL_SUPPORT_CACHE = new Map();
-const TOOL_UNSUPPORTED_KEYWORDS = [
-  'tool_calls',
-  'tool calls',
-  'tool_choice',
-  'tool choice',
-  'function_call',
-  'function call',
-  'tools',
-];
-const TOOL_UNSUPPORTED_HINTS = [
-  'not supported',
-  'unsupported',
-  'does not support',
-  'not allowed',
-  'cannot be used',
-  'is not available',
-];
-
 const STREAMING_PLACEHOLDER_TEXT = '生成中...';
 
 let runtimeInstance = null;
@@ -158,9 +94,9 @@ function normalizeSupplierUrl(baseUrl) {
 function getToolSupportKey(suppliers) {
   const baseUrl = normalizeSupplierUrl(suppliers?.baseUrl || '');
   const model = typeof suppliers?.model === 'string' ? suppliers.model.trim() : '';
-  const useProxy = suppliers?.useProxy ?? true;
+  const transport = resolveTransport(suppliers || {});
   if (!baseUrl || !model) return '';
-  return `${baseUrl}::${model}::${useProxy ? 'proxy' : 'direct'}`;
+  return `${baseUrl}::${model}::${transport}`;
 }
 
 function getToolSupportState(suppliers) {
@@ -186,9 +122,24 @@ function shouldSkipToolFlowForUnsupportedSupplier(suppliers) {
 function isToolUnsupportedError(error) {
   const message = String(error?.message || '').toLowerCase();
   if (!message) return false;
-  const hasKeyword = TOOL_UNSUPPORTED_KEYWORDS.some((token) => message.includes(token));
+  const hasKeyword = [
+    `tool${'_'}calls`,
+    'tool calls',
+    `tool${'_'}choice`,
+    'tool choice',
+    `function${'_'}call`,
+    'function call',
+    'tools',
+  ].some((token) => message.includes(token));
   if (!hasKeyword) return false;
-  return TOOL_UNSUPPORTED_HINTS.some((hint) => message.includes(hint));
+  return [
+    'not supported',
+    'unsupported',
+    'does not support',
+    'not allowed',
+    'cannot be used',
+    'is not available',
+  ].some((hint) => message.includes(hint));
 }
 
 function nextRunId() {
@@ -276,20 +227,17 @@ function buildToolPromptPayload(payload, instruction) {
 
 function buildToolMessages(history, instruction, payload, skillRuntimeContext = null, options = {}) {
   const recent = Array.isArray(history) ? history.slice(-8) : [];
-  const userMessage = {
-    role: 'user',
-    content: buildToolPromptPayload(payload, instruction),
-  };
+  const userMessage = createInternalTextMessage('user', buildToolPromptPayload(payload, instruction));
   const includeSkillTools = options?.includeSkillTools === true;
-  const systemMessages = [{ role: 'system', content: TOOL_SYSTEM_PROMPT }];
+  const systemMessages = [createInternalTextMessage('system', TOOL_SYSTEM_PROMPT)];
   if (includeSkillTools) {
-    systemMessages.push({ role: 'system', content: SKILL_TOOL_SYSTEM_PROMPT });
+    systemMessages.push(createInternalTextMessage('system', SKILL_TOOL_SYSTEM_PROMPT));
   }
   if (skillRuntimeContext?.contextText) {
-    systemMessages.push({ role: 'system', content: SKILL_GUARDRAIL_PROMPT });
-    systemMessages.push({ role: 'system', content: skillRuntimeContext.contextText });
+    systemMessages.push(createInternalTextMessage('system', SKILL_GUARDRAIL_PROMPT));
+    systemMessages.push(createInternalTextMessage('system', skillRuntimeContext.contextText));
   }
-  return [...systemMessages, ...recent, userMessage];
+  return [...systemMessages, ...toInternalMessages(recent), userMessage];
 }
 
 function normalizeSkillSelectionByCatalog(selectedIds, catalog) {
@@ -359,25 +307,6 @@ async function resolveSkillRuntimeContext(agent, instruction) {
   }
 }
 
-function extractCompletionMessage(response) {
-  const choice = response?.choices?.[0];
-  return choice?.message || null;
-}
-
-function isUsableCompletionMessage(message) {
-  if (!message || typeof message !== 'object') return false;
-  if (Array.isArray(message.tool_calls) && message.tool_calls.length > 0) return true;
-  if (message.tool_calls && typeof message.tool_calls === 'object') return true;
-  if (message.function_call?.name) return true;
-  return typeof message.content === 'string';
-}
-
-function resolveSupplierTemperature(suppliers) {
-  const numeric = Number(suppliers?.temperature);
-  if (!Number.isFinite(numeric)) return 1.0;
-  return Math.min(2, Math.max(0, numeric));
-}
-
 async function requestToolRoundCompletion({
   toolMessages,
   suppliers,
@@ -387,63 +316,16 @@ async function requestToolRoundCompletion({
   onDelta,
   onThinkingDelta,
 }) {
-  const temperature = resolveSupplierTemperature(suppliers);
   try {
-    const streamed = await streamCompleteChat({
+    return await requestAssistantTurn({
       messages: toolMessages,
-      model: suppliers.model,
-      baseUrl: suppliers.baseUrl,
-      apiKey: suppliers.apiKey,
-      useProxy: suppliers.useProxy ?? true,
-      temperature,
+      supplier: suppliers,
       tools: toolDefinitions,
       toolChoice,
       signal,
-      onDelta,
+      onTextDelta: onDelta,
       onThinkingDelta,
     });
-    const streamMessage = extractCompletionMessage(streamed);
-    if (isUsableCompletionMessage(streamMessage)) {
-      return streamed;
-    }
-  } catch (error) {
-    if (isAbortError(error)) {
-      throw error;
-    }
-    if (isToolUnsupportedError(error)) {
-      setToolSupportState(suppliers, false);
-      throw error;
-    }
-  }
-
-  try {
-    const completion = await completeChat({
-      messages: toolMessages,
-      model: suppliers.model,
-      baseUrl: suppliers.baseUrl,
-      apiKey: suppliers.apiKey,
-      useProxy: suppliers.useProxy ?? true,
-      temperature,
-      tools: toolDefinitions,
-      toolChoice,
-      signal,
-    });
-    const fallbackMessage = completion?.choices?.[0]?.message || null;
-    const fallbackContent = fallbackMessage?.content;
-    if (typeof fallbackContent === 'string' && fallbackContent) {
-      const split = splitThinkTaggedContent(fallbackContent);
-      if (split.visibleText) {
-        onDelta?.(split.visibleText);
-      }
-      if (split.thinkingText) {
-        onThinkingDelta?.(split.thinkingText);
-      }
-    }
-    const fallbackReasoning = normalizeThinkingText(fallbackMessage?.reasoning_content || '');
-    if (fallbackReasoning) {
-      onThinkingDelta?.(fallbackReasoning);
-    }
-    return completion;
   } catch (error) {
     if (isToolUnsupportedError(error)) {
       setToolSupportState(suppliers, false);
@@ -452,33 +334,15 @@ async function requestToolRoundCompletion({
   }
 }
 
-function normalizeToolCalls(message, runId, toolCallsUsed) {
-  if (!message || typeof message !== 'object') return [];
-  const raw = message.tool_calls;
-  if (Array.isArray(raw)) return raw;
-  if (raw && typeof raw === 'object') {
-    const name = raw.function?.name || raw.name;
-    if (name) {
-      return [{
-        id: raw.id || `tool_${runId}_${toolCallsUsed + 1}`,
-        function: {
-          name,
-          arguments: raw.function?.arguments || raw.arguments || '',
-        },
-      }];
-    }
-  }
-  const fn = message.function_call;
-  if (fn?.name) {
-    return [{
-      id: `tool_${runId}_${toolCallsUsed + 1}`,
-      function: {
-        name: fn.name,
-        arguments: fn.arguments || '',
-      },
-    }];
-  }
-  return [];
+function normalizeAssistantTurnToolCalls(turn, runId, toolCallsUsed) {
+  if (!turn || typeof turn !== 'object' || !Array.isArray(turn.toolCalls)) return [];
+  return turn.toolCalls
+    .map((call, index) => ({
+      id: call?.id || `tool_${runId}_${toolCallsUsed + index + 1}`,
+      name: call?.name || '',
+      arguments: call?.arguments ?? {},
+    }))
+    .filter((call) => call.name || call.id);
 }
 
 function buildToolParseError({ context, toolCallId, message }) {
@@ -510,161 +374,8 @@ function buildToolError({ context, toolCallId, code, message, warnings = [] }) {
 }
 
 function normalizeToolArgs(toolName, args) {
-  const effectiveToolName = String(toolName || '').trim().split(':').pop();
-  const payload = args && typeof args === 'object' ? { ...args } : {};
-
-  const moveAlias = (target, aliases) => {
-    if (Object.prototype.hasOwnProperty.call(payload, target)) {
-      aliases.forEach((alias) => {
-        if (Object.prototype.hasOwnProperty.call(payload, alias)) {
-          delete payload[alias];
-        }
-      });
-      return;
-    }
-    for (const alias of aliases) {
-      if (Object.prototype.hasOwnProperty.call(payload, alias)) {
-        payload[target] = payload[alias];
-        delete payload[alias];
-        break;
-      }
-    }
-  };
-
-  moveAlias('path', ['field', 'field_path', 'fieldPath']);
-  moveAlias('from_path', ['fromPath', 'from', 'source_path']);
-  moveAlias('to_index', ['toIndex', 'targetIndex']);
-  moveAlias('ref_id', ['refId', 'ref']);
-  moveAlias('old_value', ['oldValue']);
-  moveAlias('old_hash', ['oldHash']);
-  moveAlias('new_value', ['newValue']);
-  moveAlias('value', ['val']);
-  moveAlias('include_indices', ['includeIndices']);
-  moveAlias('max_chars', ['maxChars']);
-  moveAlias('max_bytes', ['maxBytes']);
-  moveAlias('max_hits', ['maxHits']);
-  moveAlias('snippet_chars', ['snippetChars']);
-  moveAlias('skill_id', ['skillId', 'id', 'skill_name', 'skillName', 'name']);
-  moveAlias('previous_skill_id', ['previousSkillId', 'old_skill_id', 'oldSkillId', 'source_skill_id', 'sourceSkillId']);
-
-  if (effectiveToolName === 'move_entry' && !payload.from_path && payload.path) {
-    payload.from_path = payload.path;
-    delete payload.path;
-  }
-  if (effectiveToolName === 'remove_entry' && !payload.path && payload.from_path) {
-    payload.path = payload.from_path;
-  }
-
-  if (effectiveToolName === 'edit_field') {
-    if (!Object.prototype.hasOwnProperty.call(payload, 'new_value')
-      && Object.prototype.hasOwnProperty.call(payload, 'value')) {
-      payload.new_value = payload.value;
-      delete payload.value;
-    }
-  }
-  if (effectiveToolName === 'set_field' || effectiveToolName === 'append_entry') {
-    if (!Object.prototype.hasOwnProperty.call(payload, 'value')
-      && Object.prototype.hasOwnProperty.call(payload, 'new_value')) {
-      payload.value = payload.new_value;
-      delete payload.new_value;
-    }
-  }
-
-  if (effectiveToolName === 'list_fields') {
-    if (!Object.prototype.hasOwnProperty.call(payload, 'filters')
-      && Object.prototype.hasOwnProperty.call(payload, 'filter')) {
-      payload.filters = payload.filter;
-      delete payload.filter;
-    }
-    if (!payload.filters && (payload.path_prefix || payload.pathPrefix)) {
-      payload.filters = {};
-    }
-    if (payload.path_prefix) {
-      payload.filters = { ...(payload.filters || {}), path_prefix: payload.path_prefix };
-      delete payload.path_prefix;
-    }
-    if (payload.pathPrefix) {
-      payload.filters = { ...(payload.filters || {}), path_prefix: payload.pathPrefix };
-      delete payload.pathPrefix;
-    }
-    if (payload.filters?.pathPrefix) {
-      payload.filters.path_prefix = payload.filters.pathPrefix;
-      delete payload.filters.pathPrefix;
-    }
-  }
-
-  if (effectiveToolName === 'list_refs') {
-    if (!Object.prototype.hasOwnProperty.call(payload, 'filters')
-      && Object.prototype.hasOwnProperty.call(payload, 'filter')) {
-      payload.filters = payload.filter;
-      delete payload.filter;
-    }
-    if (payload.filters?.hasText !== undefined) {
-      payload.filters.has_text = payload.filters.hasText;
-      delete payload.filters.hasText;
-    }
-    if (payload.filters?.maxBytes !== undefined) {
-      payload.filters.max_bytes = payload.filters.maxBytes;
-      delete payload.filters.maxBytes;
-    }
-    if (payload.filters?.createdAfter !== undefined) {
-      payload.filters.created_after = payload.filters.createdAfter;
-      delete payload.filters.createdAfter;
-    }
-  }
-
-  if (effectiveToolName === 'view_ref' || effectiveToolName === 'search_ref') {
-    if (payload.refId && !payload.ref_id) {
-      payload.ref_id = payload.refId;
-      delete payload.refId;
-    }
-  }
-  if (effectiveToolName === 'search_ref') {
-    if (payload.keyword && !payload.query) {
-      payload.query = payload.keyword;
-      delete payload.keyword;
-    }
-  }
-
-  if (effectiveToolName === 'save_skill') {
-    if (!Object.prototype.hasOwnProperty.call(payload, 'references')) {
-      if (Array.isArray(payload.refs)) {
-        payload.references = payload.refs;
-      } else if (Array.isArray(payload.reference_list)) {
-        payload.references = payload.reference_list;
-      }
-      delete payload.refs;
-      delete payload.reference_list;
-    }
-
-    if (Array.isArray(payload.references)) {
-      payload.references = payload.references.map((item) => {
-        if (!item || typeof item !== 'object') return item;
-        const normalized = { ...item };
-        if (!Object.prototype.hasOwnProperty.call(normalized, 'name')) {
-          if (Object.prototype.hasOwnProperty.call(normalized, 'ref_name')) {
-            normalized.name = normalized.ref_name;
-          } else if (Object.prototype.hasOwnProperty.call(normalized, 'reference_name')) {
-            normalized.name = normalized.reference_name;
-          }
-        }
-        if (!Object.prototype.hasOwnProperty.call(normalized, 'content')) {
-          if (Object.prototype.hasOwnProperty.call(normalized, 'text')) {
-            normalized.content = normalized.text;
-          } else if (Object.prototype.hasOwnProperty.call(normalized, 'value')) {
-            normalized.content = normalized.value;
-          }
-        }
-        delete normalized.ref_name;
-        delete normalized.reference_name;
-        delete normalized.text;
-        delete normalized.value;
-        return normalized;
-      });
-    }
-  }
-
-  return payload;
+  void toolName;
+  return args && typeof args === 'object' ? { ...args } : {};
 }
 
 function formatToolWarnings(warnings) {
@@ -811,6 +522,21 @@ function collectToolDiffSummaries(toolResult) {
   return [];
 }
 
+function sanitizeToolResultForModel(toolResult) {
+  if (!toolResult || typeof toolResult !== 'object') return toolResult;
+  const {
+    new_card: _newCard,
+    new_skill_repository: _newSkillRepository,
+    diff_summary: diffSummary,
+    diff_summaries: diffSummaries,
+    ...publicResult
+  } = toolResult;
+  const sanitized = { ...publicResult };
+  if (diffSummary) sanitized.diff_summary = diffSummary;
+  if (Array.isArray(diffSummaries)) sanitized.diff_summaries = diffSummaries;
+  return sanitized;
+}
+
 function normalizeValueForStableStringify(value, seen) {
   if (!value || typeof value !== 'object') return value;
   if (seen.has(value)) return '[Circular]';
@@ -925,7 +651,9 @@ async function runToolFlow({ agent, cardStore, suppliers, toast, instruction, ru
   const previousSnapshot = agent.runtime?.toolSnapshot || null;
   const previousHash = agent.runtime?.toolSnapshotHash || null;
 
-  let toolMessages = resumeSession?.toolMessages || null;
+  let toolMessages = Array.isArray(resumeSession?.toolMessages)
+    ? toInternalMessages(resumeSession.toolMessages)
+    : null;
   let workingCard = resumeSession?.workingCard || null;
   let workingSkillRepository = resumeSession?.workingSkillRepository || null;
   const diffSummaries = Array.isArray(resumeSession?.diffSummaries) ? [...resumeSession.diffSummaries] : [];
@@ -982,7 +710,7 @@ async function runToolFlow({ agent, cardStore, suppliers, toast, instruction, ru
       }
     } else {
       const message = String(instruction || '').trim() || '继续';
-      toolMessages.push({ role: 'user', content: message });
+      toolMessages.push(createInternalTextMessage('user', message));
       workingCard = workingCard || deepClone(cardStore.data);
       if (!workingSkillRepository) {
         try {
@@ -1000,12 +728,12 @@ async function runToolFlow({ agent, cardStore, suppliers, toast, instruction, ru
     let totalWriteBytes = 0;
     let consecutiveToolErrors = 0;
     const hasToolHistory = Array.isArray(toolMessages)
-      && toolMessages.some((item) => item?.role === 'tool');
+      && toolMessages.some((item) => item?.role === 'tool' || item?.role === 'toolResult');
     if (hasToolHistory) {
       setToolSupportState(suppliers, true);
     }
     while (toolCallsUsed < getToolCallLimit()) {
-      let completion;
+      let assistantTurn;
       let streamedText = '';
       let streamedRawText = '';
       let streamedReasoning = '';
@@ -1017,7 +745,7 @@ async function runToolFlow({ agent, cardStore, suppliers, toast, instruction, ru
         agent.chat.streamingThinking = mergedThinking;
       };
       try {
-        completion = await requestToolRoundCompletion({
+        assistantTurn = await requestToolRoundCompletion({
           toolMessages,
           suppliers,
           toolDefinitions,
@@ -1060,20 +788,19 @@ async function runToolFlow({ agent, cardStore, suppliers, toast, instruction, ru
 
       if (agent.runtime.runId !== runId) return { handled: true };
 
-      const message = extractCompletionMessage(completion);
-      if (!message) {
+      if (!assistantTurn) {
         return { handled: false };
       }
 
-      const splitMessage = splitThinkTaggedContent(message.content || '');
+      const splitMessage = splitThinkTaggedContent(assistantTurn.text || '');
       const assistantText = String(splitMessage.visibleText || '').trim();
       const baseThinking = mergeThinkingParts([
         splitMessage.thinkingText,
-        message?.reasoning_content,
+        assistantTurn.thinking,
         streamedReasoning,
       ]);
 
-      const toolCalls = normalizeToolCalls(message, runId, toolCallsUsed);
+      const toolCalls = normalizeAssistantTurnToolCalls(assistantTurn, runId, toolCallsUsed);
       if (toolCalls.length === 0) {
         pushTraceItem(activityTrace, createThinkingTrace(baseThinking));
         return {
@@ -1096,11 +823,12 @@ async function runToolFlow({ agent, cardStore, suppliers, toast, instruction, ru
 
       setToolSupportState(suppliers, true);
 
-      toolMessages.push({
-        role: 'assistant',
-        content: assistantText,
-        tool_calls: toolCalls,
-      });
+      toolMessages.push(assistantTurnToInternalMessage({
+        ...assistantTurn,
+        text: assistantText,
+        thinking: baseThinking,
+        toolCalls,
+      }));
 
       let shouldRetry = false;
       for (const call of toolCalls) {
@@ -1129,8 +857,8 @@ async function runToolFlow({ agent, cardStore, suppliers, toast, instruction, ru
 
         toolCallsUsed += 1;
         const toolCallId = call.id || `tool_${runId}_${toolCallsUsed}`;
-        const toolName = call.function?.name || call.name || '';
-        const rawArgs = call.function?.arguments || call.arguments || '';
+        const toolName = call.name || '';
+        const rawArgs = call.arguments ?? '';
         let parsedArgs = null;
         let toolResult;
         const startAt = Date.now();
@@ -1166,24 +894,18 @@ async function runToolFlow({ agent, cardStore, suppliers, toast, instruction, ru
 
         if (!toolResult) {
           parsedArgs = normalizeToolArgs(toolName, parsedArgs || {});
-          if (
-            toolName === 'edit_field' &&
-            Object.prototype.hasOwnProperty.call(parsedArgs || {}, 'old_value') &&
-            !parsedArgs?.old_hash
-          ) {
-            const path = typeof parsedArgs?.path === 'string' ? parsedArgs.path.trim() : '';
-            if (path && truncatedPaths.has(path)) {
-              toolResult = buildToolError({
-                context,
-                toolCallId,
-                code: 'E_PRECONDITION_FAILED',
-                message: '截断读取后必须提供 old_hash',
-              });
-            }
-          }
         }
 
         if (!toolResult) {
+          const casPrepared = await attachWriteFieldCasHash({
+            toolName,
+            args: parsedArgs || {},
+            workingCard,
+            workingSkillRepository,
+            context,
+            toolCallId,
+          });
+          parsedArgs = casPrepared.args || parsedArgs || {};
           toolResult = await executeToolCall({
             toolName,
             args: parsedArgs || {},
@@ -1195,22 +917,19 @@ async function runToolFlow({ agent, cardStore, suppliers, toast, instruction, ru
         }
 
         if (isOldHashError(toolResult) && !parsedArgs?._cas_recovered) {
-          const viewPath = resolveCasViewPath(toolName, parsedArgs);
+          const viewPath = resolveCasReadPath(toolName, parsedArgs);
           if (viewPath) {
             const viewResult = await executeToolCall({
-              toolName: 'view_field',
-              args: { path: viewPath, max_chars: 0 },
+              toolName: resolveCasToolReadName(toolName),
+              args: buildCasReadArgs(toolName, viewPath, parsedArgs),
               card: workingCard,
               skillsRepository: workingSkillRepository,
               context,
               toolCallId: `${toolCallId}_cas`,
             });
-            const recoveredHash = resolveCasHashFromViewResult(toolName, viewResult);
+            const recoveredHash = resolveCasHashFromReadResult(toolName, parsedArgs, viewResult);
             if (recoveredHash) {
-              const nextArgs = { ...parsedArgs, old_hash: recoveredHash, _cas_recovered: true };
-              if (toolName === 'edit_field' && Object.prototype.hasOwnProperty.call(nextArgs, 'old_value')) {
-                delete nextArgs.old_value;
-              }
+              const nextArgs = { ...parsedArgs, expected_hash: recoveredHash, _cas_recovered: true };
               parsedArgs = nextArgs;
               toolResult = await executeToolCall({
                 toolName,
@@ -1249,7 +968,7 @@ async function runToolFlow({ agent, cardStore, suppliers, toast, instruction, ru
           tool_call_id: toolCallId,
           duration_ms: Date.now() - startAt,
           args: parsedArgs || {},
-          result: toolResult,
+          result: sanitizeToolResultForModel(toolResult),
         });
 
         pushTraceItem(activityTrace, createToolTrace({
@@ -1260,11 +979,12 @@ async function runToolFlow({ agent, cardStore, suppliers, toast, instruction, ru
           durationMs: Date.now() - startAt,
         }));
 
-        toolMessages.push({
-          role: 'tool',
-          tool_call_id: toolCallId,
-          content: JSON.stringify(toolResult),
-        });
+        toolMessages.push(toolResultToInternalMessage({
+          toolCallId,
+          toolName,
+          result: sanitizeToolResultForModel(toolResult),
+          isError: toolResult?.status !== 'ok',
+        }));
 
         toolWarnings.push(...formatToolWarnings(toolResult?.warnings));
 
@@ -1298,7 +1018,7 @@ async function runToolFlow({ agent, cardStore, suppliers, toast, instruction, ru
 
         consecutiveToolErrors = 0;
 
-        if (toolName === 'view_field' && toolResult?.truncated) {
+        if (normalizeRuntimeToolName(toolName) === 'card_read_field' && toolResult?.truncated) {
           const rawPath = typeof parsedArgs?.path === 'string' ? parsedArgs.path.trim() : '';
           const canonicalPath = toolResult?.canonical_path || '';
           if (rawPath) truncatedPaths.add(rawPath);
@@ -1322,11 +1042,12 @@ async function runToolFlow({ agent, cardStore, suppliers, toast, instruction, ru
                   severity: 'warn',
                 }],
               });
-              toolMessages.push({
-                role: 'tool',
-                tool_call_id: toolCallId,
-                content: JSON.stringify(sizeError),
-              });
+              toolMessages.push(toolResultToInternalMessage({
+                toolCallId,
+                toolName,
+                result: sanitizeToolResultForModel(sizeError),
+                isError: true,
+              }));
               toolWarnings.push('写入超过单轮上限');
               consecutiveToolErrors += 1;
               if (consecutiveToolErrors >= TOOL_CONSECUTIVE_ERROR_LIMIT) {
@@ -1675,7 +1396,7 @@ function normalizeUserFacingError(message) {
   if (text.includes('old_hash') || text.includes('old_value')) {
     return '数据已变更导致本次修改失效，请重试';
   }
-  if (text.includes('remove_entry 需要数组项路径')) {
+  if (text.includes('数组项路径')) {
     return '删除失败：请指定数组项路径（包含 [index]）';
   }
   return text;
@@ -1687,18 +1408,110 @@ function isOldHashError(toolResult) {
   return true;
 }
 
-function resolveCasViewPath(toolName, args) {
-  if (!CAS_RECOVERABLE_TOOLS.has(toolName)) return null;
-  if (toolName === 'move_entry') return typeof args?.from_path === 'string' ? args.from_path.trim() : '';
-  return typeof args?.path === 'string' ? args.path.trim() : '';
+function normalizeRuntimeToolName(toolName) {
+  return String(toolName || '').trim().split(':').pop() || '';
 }
 
-function resolveCasHashFromViewResult(toolName, viewResult) {
+function resolveCasReadPath(toolName, args) {
+  const name = normalizeRuntimeToolName(toolName);
+  if ([
+    'card_set_field',
+    'card_patch_text',
+    'card_edit_items',
+  ].includes(name)) {
+    return typeof args?.path === 'string' ? args.path.trim() : '';
+  }
+  if ([
+    'lorebook_patch_entry',
+    'lorebook_upsert_entry',
+    'lorebook_remove_entry',
+  ].includes(name)) {
+    return args?.entry_ref || null;
+  }
+  if (name === 'lorebook_reorder_entries') return { entries: true };
+  if (name === 'lorebook_set_meta') return { meta: true };
+  return null;
+}
+
+function resolveCasToolReadName(toolName) {
+  const name = normalizeRuntimeToolName(toolName);
+  if (name.startsWith('lorebook_')) {
+    if (name === 'lorebook_reorder_entries' || name === 'lorebook_set_meta') return 'lorebook_summary';
+    return 'lorebook_read_entry';
+  }
+  return 'card_read_field';
+}
+
+function buildCasReadArgs(toolName, readPath, args) {
+  const name = normalizeRuntimeToolName(toolName);
+  if (name === 'lorebook_patch_entry' || name === 'lorebook_upsert_entry' || name === 'lorebook_remove_entry') {
+    return { entry_ref: readPath, max_chars: 0 };
+  }
+  if (name === 'lorebook_reorder_entries') {
+    return { max_entries: 0, max_preview_chars: 0 };
+  }
+  if (name === 'lorebook_set_meta') {
+    return { max_entries: 0, max_preview_chars: 0 };
+  }
+  return { path: readPath, max_chars: 0, max_bytes: args?.max_bytes };
+}
+
+function resolveCasHashFromReadResult(toolName, args, viewResult) {
   if (!viewResult || viewResult.status !== 'ok') return null;
-  if (toolName === 'remove_entry' || toolName === 'move_entry') {
+  const operation = String(args?.operation || '').trim();
+  const name = normalizeRuntimeToolName(toolName);
+  if (name === 'card_edit_items' && (operation === 'remove' || operation === 'move' || operation === 'set')) {
     return viewResult.array_hash || viewResult.current_hash || null;
   }
+  if (name === 'card_patch_text' && (String(args?.path || '').includes('[') || args?.scope === 'items')) {
+    return viewResult.array_hash || viewResult.current_hash || null;
+  }
+  if (name === 'lorebook_patch_entry') {
+    return viewResult.content_hash || viewResult.current_hash || null;
+  }
   return viewResult.current_hash || null;
+}
+
+async function attachWriteFieldCasHash({
+  toolName,
+  args,
+  workingCard,
+  workingSkillRepository,
+  context,
+  toolCallId,
+}) {
+  const name = normalizeRuntimeToolName(toolName);
+  if (![
+    'card_set_field',
+    'card_patch_text',
+    'card_edit_items',
+    'lorebook_patch_entry',
+    'lorebook_upsert_entry',
+    'lorebook_remove_entry',
+    'lorebook_reorder_entries',
+    'lorebook_set_meta',
+  ].includes(name)) return { args, readResult: null };
+  if (args?.expected_hash) return { args, readResult: null };
+  const readPath = resolveCasReadPath(toolName, args);
+  if (!readPath) return { args, readResult: null };
+  const readToolName = resolveCasToolReadName(toolName);
+  const readResult = await executeToolCall({
+    toolName: readToolName,
+    args: buildCasReadArgs(toolName, readPath, args),
+    card: workingCard,
+    skillsRepository: workingSkillRepository,
+    context,
+    toolCallId: `${toolCallId}_cas`,
+  });
+  const currentHash = resolveCasHashFromReadResult(toolName, args, readResult);
+  if (!currentHash) return { args, readResult };
+  return {
+    args: {
+      ...args,
+      expected_hash: currentHash,
+    },
+    readResult,
+  };
 }
 
 function appendMessage(agent, role, content, meta = {}) {
@@ -1877,6 +1690,18 @@ export function getAgentRuntime() {
       }
 
       const summary = toolResult.summary || buildSummaryFromDiffs(toolResult.diffSummaries);
+      if (diffs.length === 0 && deepEqual(cardStore.data, toolResult.workingCard)) {
+        clearStreamingBuffers(agent);
+        appendMessage(agent, 'assistant', summary);
+        if (agent.runtime.runId !== runId) return;
+        clearStaging(agent);
+        agent.runtime.status = 'idle';
+        if (!toolResult?.pending) {
+          agent.runtime.toolSession = null;
+        }
+        return;
+      }
+
       const entryId = nextAppliedId();
       clearStreamingBuffers(agent);
       const summaryMessage = appendMessage(agent, 'assistant', summary, {
@@ -1935,6 +1760,10 @@ export function getAgentRuntime() {
         beforeSkillRepository,
         afterSkillRepository,
       });
+
+      if (toolResult?.pending && agent.runtime.toolSession) {
+        agent.runtime.toolSession.diffSummaries = [];
+      }
 
       syncLastApplied(agent);
       if (agent.ui) {
@@ -2179,4 +2008,5 @@ export const __agentRuntimeTesting = {
   collectToolDiffSummaries,
   buildToolDiffs,
   createToolTrace,
+  rollbackLatestApplied,
 };

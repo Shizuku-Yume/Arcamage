@@ -17,6 +17,9 @@ describe('suppliers store', () => {
     expect(suppliers.currentProviderId).toBeTruthy();
     expect(suppliers.baseUrl).toBe('');
     expect(suppliers.useProxy).toBe(false);
+    expect(suppliers.provider).toBe('openai-compatible');
+    expect(suppliers.api).toBe('openai-completions');
+    expect(suppliers.transport).toBe('direct');
     expect(suppliers.temperature).toBe(1.0);
   });
 
@@ -45,6 +48,52 @@ describe('suppliers store', () => {
     expect(suppliers.apiKey).toBe('sk-test');
     expect(suppliers.model).toBe('model-x');
     expect(suppliers.useProxy).toBe(true);
+    expect(suppliers.provider).toBe('openai-compatible');
+    expect(suppliers.api).toBe('openai-completions');
+    expect(suppliers.transport).toBe('arcamage-proxy');
     expect(suppliers.temperature).toBe(1.4);
+
+    suppliers.availableModels = [{ id: 'model-x' }, { id: 'model-y' }];
+    suppliers.save();
+    suppliers.load();
+
+    expect(suppliers.availableModels).toEqual([{ id: 'model-x' }, { id: 'model-y' }]);
+    expect(suppliers.getCurrentProvider()?.availableModels).toEqual([{ id: 'model-x' }, { id: 'model-y' }]);
+  });
+
+  it('preserves explicit non-legacy transport settings', () => {
+    const suppliers = Alpine.store('suppliers');
+    suppliers.load();
+
+    suppliers.baseUrl = 'https://api.anthropic.com';
+    suppliers.apiKey = 'sk-test';
+    suppliers.model = 'claude-test';
+    suppliers.provider = 'anthropic';
+    suppliers.api = 'anthropic-messages';
+    suppliers.transport = 'arcamage-proxy';
+    suppliers.useProxy = false;
+    suppliers.reasoning = true;
+    suppliers.compat = { cacheSystemPrompt: true };
+    suppliers.contextWindow = 200000;
+    suppliers.maxTokens = 8192;
+    suppliers.save();
+    suppliers.load();
+
+    expect(suppliers.provider).toBe('anthropic');
+    expect(suppliers.api).toBe('anthropic-messages');
+    expect(suppliers.transport).toBe('arcamage-proxy');
+    expect(suppliers.useProxy).toBe(true);
+    expect(suppliers.reasoning).toBe(true);
+    expect(suppliers.compat).toEqual({ cacheSystemPrompt: true });
+    expect(suppliers.contextWindow).toBe(200000);
+    expect(suppliers.maxTokens).toBe(8192);
+
+    suppliers.transport = 'direct';
+    suppliers.useProxy = true;
+    suppliers.save();
+    suppliers.load();
+
+    expect(suppliers.transport).toBe('direct');
+    expect(suppliers.useProxy).toBe(false);
   });
 });

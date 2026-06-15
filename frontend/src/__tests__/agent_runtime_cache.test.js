@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import Alpine from 'alpinejs';
 
-vi.mock('../components/ai_client.js', () => ({
-  completeChat: vi.fn(),
-  streamCompleteChat: vi.fn(),
+vi.mock('../agent/llm/client.js', () => ({
+  requestAssistantTurn: vi.fn(),
 }));
 
-import { completeChat, streamCompleteChat } from '../components/ai_client.js';
+import { requestAssistantTurn } from '../agent/llm/client.js';
 import { __agentRuntimeTesting } from '../components/agent_runtime.js';
 
 describe('agent_runtime tool support cache and fallback', () => {
@@ -26,16 +26,13 @@ describe('agent_runtime tool support cache and fallback', () => {
     expect(__agentRuntimeTesting.shouldSkipToolFlowForUnsupportedSupplier(suppliers)).toBe(true);
   });
 
-  it('falls back to completeChat when streamed result is unusable', async () => {
-    streamCompleteChat.mockResolvedValue({
-      choices: [{
-        message: null,
-      }],
-    });
-    completeChat.mockResolvedValue({
-      choices: [{
-        message: { role: 'assistant', content: 'fallback result' },
-      }],
+  it('requests assistant turns through the LLM client', async () => {
+    requestAssistantTurn.mockResolvedValue({
+      role: 'assistant',
+      text: 'result',
+      thinking: '',
+      toolCalls: [],
+      stopReason: 'stop',
     });
 
     const result = await __agentRuntimeTesting.requestToolRoundCompletion({
@@ -46,14 +43,18 @@ describe('agent_runtime tool support cache and fallback', () => {
       signal: null,
     });
 
-    expect(streamCompleteChat).toHaveBeenCalledOnce();
-    expect(completeChat).toHaveBeenCalledOnce();
-    expect(result?.choices?.[0]?.message?.content).toBe('fallback result');
+    expect(requestAssistantTurn).toHaveBeenCalledWith(expect.objectContaining({
+      messages: [{ role: 'user', content: 'do something' }],
+      supplier: suppliers,
+      tools: [],
+      toolChoice: 'auto',
+    }));
+    expect(result?.text).toBe('result');
   });
 
   it('marks cache unsupported only for explicit tool unsupported errors', async () => {
     const unsupportedError = new Error('tool_calls not supported by this upstream provider');
-    streamCompleteChat.mockRejectedValue(unsupportedError);
+    requestAssistantTurn.mockRejectedValue(unsupportedError);
 
     await expect(__agentRuntimeTesting.requestToolRoundCompletion({
       toolMessages: [{ role: 'user', content: 'do something' }],
@@ -63,38 +64,33 @@ describe('agent_runtime tool support cache and fallback', () => {
       signal: null,
     })).rejects.toThrow('tool_calls not supported');
 
-    expect(completeChat).not.toHaveBeenCalled();
     expect(__agentRuntimeTesting.getToolSupportState(suppliers)).toBe(false);
   });
 
   it('does not poison cache on generic stream errors', async () => {
-    streamCompleteChat.mockRejectedValue(new Error('temporary parse failure'));
-    completeChat.mockResolvedValue({
-      choices: [{
-        message: { role: 'assistant', content: 'ok' },
-      }],
-    });
+    requestAssistantTurn.mockRejectedValue(new Error('temporary parse failure'));
 
-    await __agentRuntimeTesting.requestToolRoundCompletion({
+    await expect(__agentRuntimeTesting.requestToolRoundCompletion({
       toolMessages: [{ role: 'user', content: 'do something' }],
       suppliers,
       toolDefinitions: [],
       toolChoice: 'auto',
       signal: null,
-    });
+    })).rejects.toThrow('temporary parse failure');
 
-    expect(completeChat).toHaveBeenCalledOnce();
     expect(__agentRuntimeTesting.getToolSupportState(suppliers)).toBeUndefined();
   });
 
   it('forwards streaming deltas to runtime callback', async () => {
-    streamCompleteChat.mockImplementation(async ({ onDelta }) => {
-      onDelta?.('part-1 ');
-      onDelta?.('part-2');
+    requestAssistantTurn.mockImplementation(async ({ onTextDelta }) => {
+      onTextDelta?.('part-1 ');
+      onTextDelta?.('part-2');
       return {
-        choices: [{
-          message: { role: 'assistant', content: 'part-1 part-2' },
-        }],
+        role: 'assistant',
+        text: 'part-1 part-2',
+        thinking: '',
+        toolCalls: [],
+        stopReason: 'stop',
       };
     });
 
@@ -114,13 +110,15 @@ describe('agent_runtime tool support cache and fallback', () => {
   });
 
   it('forwards streaming thinking deltas to runtime callback', async () => {
-    streamCompleteChat.mockImplementation(async ({ onThinkingDelta }) => {
+    requestAssistantTurn.mockImplementation(async ({ onThinkingDelta }) => {
       onThinkingDelta?.('reason-1');
       onThinkingDelta?.('reason-2');
       return {
-        choices: [{
-          message: { role: 'assistant', content: 'ok', reasoning_content: 'reason-1reason-2' },
-        }],
+        role: 'assistant',
+        text: 'ok',
+        thinking: 'reason-1reason-2',
+        toolCalls: [],
+        stopReason: 'stop',
       };
     });
 
@@ -157,7 +155,7 @@ describe('agent_runtime tool support cache and fallback', () => {
 
     expect(baseMessages.length).toBe(2);
     expect(withSkillTools.length).toBe(3);
-    expect(withSkillTools[1].content).toContain('list_skills');
+    expect(withSkillTools[1].content[0].text).toContain('skill_list');
   });
 
   it('prefers diff_summaries batch contract and builds skill file diffs', () => {
@@ -194,7 +192,7 @@ describe('agent_runtime tool support cache and fallback', () => {
 
   it('uses diff_summaries[0].path as tool trace fallback', () => {
     const trace = __agentRuntimeTesting.createToolTrace({
-      toolName: 'save_skill',
+      toolName: 'skill_upsert',
       toolCallId: 'tool_1',
       parsedArgs: {},
       toolResult: {
@@ -223,5 +221,48 @@ describe('agent_runtime tool support cache and fallback', () => {
     expect(diffs).toHaveLength(1);
     expect(diffs[0].before).toBeNull();
     expect(diffs[0].after).toBe('B');
+  });
+
+  it('rolls back the latest applied entry and restores card state', () => {
+    const checkChanges = vi.fn();
+    Alpine.store('card', {
+      data: { data: { name: 'After' } },
+      checkChanges,
+    });
+    Alpine.store('history', {
+      canUndo: false,
+      undo: vi.fn(),
+    });
+
+    const agent = {
+      chat: {
+        messages: [
+          { id: 'user_1', role: 'user', content: 'rename' },
+          { id: 'assistant_1', role: 'assistant', content: 'Renamed' },
+        ],
+      },
+      appliedEntries: [{
+        id: 'apply_1',
+        userMessageId: 'user_1',
+        assistantMessageId: 'assistant_1',
+        beforeCard: { data: { name: 'Before' } },
+        afterCard: { data: { name: 'After' } },
+      }],
+      lastApplied: null,
+      ui: { showLastApplied: true },
+    };
+    agent.lastApplied = agent.appliedEntries[0];
+
+    const undone = __agentRuntimeTesting.rollbackLatestApplied(agent);
+
+    expect(undone?.id).toBe('apply_1');
+    expect(Alpine.store('card').data).toEqual({ data: { name: 'Before' } });
+    expect(checkChanges).toHaveBeenCalledOnce();
+    expect(agent.appliedEntries).toEqual([]);
+    expect(agent.lastApplied).toBeNull();
+    expect(agent.ui.showLastApplied).toBe(false);
+    expect(agent.chat.messages).toEqual([
+      { id: 'user_1', role: 'user', content: 'rename' },
+    ]);
   });
 });

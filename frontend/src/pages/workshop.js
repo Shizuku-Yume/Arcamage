@@ -39,12 +39,6 @@ export function workshopPage() {
       breakdown: {},
     },
     
-    // 预览状态
-    previewVisible: false,
-    previewContent: '',
-    previewTitle: '',
-    previewMarkdown: false,
-    
     // 计算属性
     get card() {
       return Alpine.store('card');
@@ -590,34 +584,8 @@ export function workshopPage() {
     
     // ===== P2 增强功能 =====
     
-    // 打开预览
-    showPreview(content, title = '内容预览') {
-      this.previewContent = content || '';
-      this.previewTitle = title;
-      this.previewVisible = true;
-    },
-    
-    // 关闭预览
-    closePreview() {
-      this.previewVisible = false;
-    },
-    
-    // 预览开场白
-    previewFirstMes() {
-      this.showPreview(this.card.data?.data?.first_mes, '开场白预览');
-    },
-    
-    // 预览备选开场白
-    previewAlternateGreeting(index) {
-      const greetings = this.card.data?.data?.alternate_greetings || [];
-      const content = greetings[index];
-      if (content) {
-        this.showPreview(content, `备选开场白 #${index + 1} 预览`);
-      }
-    },
-
-    // 打开开场白预览侧边栏
-    openGreetingPreviewSidebar() {
+    // 打开卡片效果预览
+    openCardPreviewSidebar() {
       const agent = Alpine.store('agent');
       if (!agent?.ui) return;
 
@@ -625,18 +593,17 @@ export function workshopPage() {
         && typeof window.matchMedia === 'function'
         && window.matchMedia('(min-width: 1024px)').matches;
 
+      agent.ui.sidebarMode = 'cardPreview';
+      agent.ui.diffPanelOpen = false;
+
       if (isDesktop) {
-        agent.ui.sidebarMode = 'greeting';
         agent.ui.isOpen = true;
+        agent.ui.isFullscreen = false;
         return;
       }
 
-      window.dispatchEvent(new CustomEvent('greeting-preview', {
-        detail: {
-          content: this.card.data?.data?.first_mes || '',
-          index: -1,
-        },
-      }));
+      agent.ui.isOpen = false;
+      agent.ui.isFullscreen = true;
     },
 
     // 打开移动端高级工具全屏

@@ -15,6 +15,7 @@ import {
   measureValue,
   stableStringify,
 } from './value_utils.js';
+import { getToolDefinitions, TOOL_ARG_WHITELIST } from './tool_contracts.js';
 
 const MAX_VALUE_CHARS = 80000;
 const MAX_PATCH_CHARS = 1024 * 1024;
@@ -31,24 +32,13 @@ const MACRO_REGEX = /\{\{\s*[^}]+\s*\}\}/g;
 const HTML_REGEX = /<[^>]+>/g;
 
 const HIGH_RISK_WRITE_ALLOWLIST = new Set();
-
-const TOOL_ARG_WHITELIST = {
-  list_fields: ['path', 'filters', 'include_indices'],
-  view_field: ['path', 'max_chars', 'max_bytes'],
-  edit_field: ['path', 'new_value', 'old_value', 'old_hash', 'return_value', 'max_chars', 'max_bytes'],
-  set_field: ['path', 'value', 'old_hash', 'return_value', 'max_chars', 'max_bytes'],
-  clear_field: ['path', 'mode', 'old_hash', 'return_value', 'max_chars', 'max_bytes'],
-  append_entry: ['path', 'value', 'old_hash', 'return_value', 'max_chars', 'max_bytes'],
-  remove_entry: ['path', 'old_hash', 'return_value', 'max_chars', 'max_bytes'],
-  move_entry: ['from_path', 'to_index', 'old_hash', 'return_value', 'max_chars', 'max_bytes'],
-  list_refs: ['filters'],
-  view_ref: ['ref_id', 'offset', 'max_chars', 'max_bytes'],
-  search_ref: ['ref_id', 'query', 'max_hits', 'snippet_chars', 'mode', 'flags'],
-  list_skills: ['filters'],
-  view_skill: ['skill_id'],
-  save_skill: ['skill_id', 'previous_skill_id', 'description', 'content', 'references'],
-  delete_skill: ['skill_id', 'delete_files'],
-};
+const CHARACTER_BOOK_PATH = 'data.character_book';
+const DEFAULT_LOREBOOK_PREVIEW_CHARS = 120;
+const MAX_LOREBOOK_PREVIEW_CHARS = 500;
+const DEFAULT_LOREBOOK_MAX_ENTRIES = 200;
+const DEFAULT_LOREBOOK_SEARCH_HITS = 20;
+const MAX_LOREBOOK_SEARCH_HITS = 200;
+const LOREBOOK_ENTRY_ID_PATTERN = /^[A-Za-z0-9_-]+$/;
 
 function containsUnsafeToken(path) {
   if (!path || typeof path !== 'string') return false;
@@ -322,6 +312,7 @@ function detectMacroLoss(before, after) {
 
 function hasHtml(text) {
   if (!text || typeof text !== 'string') return false;
+  HTML_REGEX.lastIndex = 0;
   return HTML_REGEX.test(text);
 }
 
@@ -334,14 +325,14 @@ function collectContentWarnings(before, after) {
     const lostMacros = detectMacroLoss(beforeText, afterText);
     if (lostMacros.length > 0) {
       warnings.push({
-        code: 'W_MACRO_CHANGED',
+        code: 'W_MACRO_REMOVED',
         message: `可能丢失宏：${lostMacros.join(', ')}`,
         severity: 'warn',
       });
     }
     if (hasHtml(beforeText) && !hasHtml(afterText)) {
       warnings.push({
-        code: 'W_HTML_CHANGED',
+        code: 'W_HTML_REMOVED',
         message: '可能移除了 HTML 标签',
         severity: 'warn',
       });
@@ -706,6 +697,13 @@ function applyAliasSummary(diffSummary, canonicalPath, aliasUsed) {
   };
 }
 
+function attachPatchErrorDetails(response, patchResult) {
+  if (patchResult?.candidate_snippets) {
+    response.candidate_snippets = patchResult.candidate_snippets;
+  }
+  return response;
+}
+
 function validateArgs(toolName, args) {
   const allowed = TOOL_ARG_WHITELIST[toolName];
   if (!allowed) return { ok: true, args };
@@ -926,6 +924,637 @@ function validateConstraints(value, field) {
   }
 
   return { ok: true };
+}
+
+function isCharacterBookPath(path) {
+  const normalized = String(path || '').trim();
+  return normalized === CHARACTER_BOOK_PATH
+    || normalized.startsWith(`${CHARACTER_BOOK_PATH}.`)
+    || normalized.startsWith(`${CHARACTER_BOOK_PATH}[`);
+}
+
+function buildCharacterBookBlockedResponse({ context, toolCallId, path }) {
+  return buildErrorResponse({
+    context,
+    toolCallId,
+    code: 'E_PERMISSION_DENIED',
+    message: 'data.character_book 请使用 lorebook_* 工具',
+    path,
+  });
+}
+
+function normalizeInteger(value, fallback, { min = 0, max = Number.MAX_SAFE_INTEGER } = {}) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Math.min(max, Math.max(min, Math.trunc(numeric)));
+}
+
+function clampPreviewChars(value) {
+  return normalizeInteger(value, DEFAULT_LOREBOOK_PREVIEW_CHARS, {
+    min: 0,
+    max: MAX_LOREBOOK_PREVIEW_CHARS,
+  });
+}
+
+function previewText(value, maxChars = DEFAULT_LOREBOOK_PREVIEW_CHARS) {
+  const text = String(value ?? '').replace(/\s+/g, ' ').trim();
+  if (!maxChars || text.length <= maxChars) return text;
+  return `${text.slice(0, Math.max(0, maxChars - 3))}...`;
+}
+
+function buildSearchSnippet(value, ranges, maxChars = DEFAULT_LOREBOOK_PREVIEW_CHARS) {
+  const text = String(value ?? '').replace(/\s+/g, ' ').trim();
+  if (!text) return '';
+  if (!Array.isArray(ranges) || !ranges.length) return previewText(text, maxChars);
+  const first = ranges[0];
+  const center = Math.max(0, Math.floor((first.start + first.end) / 2));
+  const half = Math.max(8, Math.floor(maxChars / 2));
+  let start = Math.max(0, center - half);
+  let end = Math.min(text.length, start + maxChars);
+  if (end - start < maxChars) {
+    start = Math.max(0, end - maxChars);
+  }
+  let snippet = text.slice(start, end);
+  if (start > 0) snippet = `...${snippet}`;
+  if (end < text.length) snippet = `${snippet}...`;
+  return snippet;
+}
+
+function ensureLorebook(card) {
+  const existing = card?.data?.character_book;
+  if (existing && typeof existing === 'object' && !Array.isArray(existing)) {
+    if (!Array.isArray(existing.entries)) {
+      existing.entries = [];
+    }
+    return existing;
+  }
+  if (!card.data || typeof card.data !== 'object') {
+    card.data = {};
+  }
+  card.data.character_book = { entries: [] };
+  return card.data.character_book;
+}
+
+function getLorebook(card) {
+  const book = card?.data?.character_book;
+  if (!book || typeof book !== 'object' || Array.isArray(book)) {
+    return { entries: [], book: null };
+  }
+  return {
+    book,
+    entries: Array.isArray(book.entries) ? book.entries : [],
+  };
+}
+
+function generateLorebookEntryId(entries) {
+  const used = new Set(
+    (Array.isArray(entries) ? entries : [])
+      .map((entry) => String(entry?.id || '').trim())
+      .filter(Boolean),
+  );
+  for (let i = 0; i < 10000; i += 1) {
+    const id = `entry_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    if (!used.has(id)) return id;
+  }
+  return `entry_${Date.now().toString(36)}_${used.size + 1}`;
+}
+
+function ensureLorebookEntryIds(entries) {
+  const list = Array.isArray(entries) ? entries : [];
+  const seen = new Set();
+  let changed = false;
+  list.forEach((entry) => {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return;
+    const rawId = String(entry.id || '').trim();
+    if (rawId && !seen.has(rawId)) {
+      entry.id = rawId;
+      seen.add(rawId);
+      return;
+    }
+    let id = generateLorebookEntryId(list);
+    while (seen.has(id)) {
+      id = generateLorebookEntryId(list);
+    }
+    entry.id = id;
+    seen.add(id);
+    changed = true;
+  });
+  return changed;
+}
+
+function normalizeKeys(value) {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => String(item ?? '')).filter((item) => item.length > 0);
+}
+
+function getEntryDisplayName(entry) {
+  return String(entry?.name || entry?.comment || entry?.id || '').trim();
+}
+
+async function buildLorebookRow(entry, index, maxPreviewChars = DEFAULT_LOREBOOK_PREVIEW_CHARS) {
+  return {
+    index,
+    id: String(entry?.id || ''),
+    name: String(entry?.name || ''),
+    comment: String(entry?.comment || ''),
+    enabled: entry?.enabled !== false,
+    constant: entry?.constant === true,
+    keys: normalizeKeys(entry?.keys),
+    secondary_keys: normalizeKeys(entry?.secondary_keys),
+    content_preview: previewText(entry?.content || '', maxPreviewChars),
+    content_hash: await hashValue(String(entry?.content || '')),
+  };
+}
+
+async function buildLorebookRows(entries, maxPreviewChars) {
+  const rows = [];
+  for (let index = 0; index < entries.length; index += 1) {
+    rows.push(await buildLorebookRow(entries[index], index, maxPreviewChars));
+  }
+  return rows;
+}
+
+function normalizeEntryRef(entryRef) {
+  if (!entryRef || typeof entryRef !== 'object' || Array.isArray(entryRef)) {
+    return {};
+  }
+  const ref = {};
+  if (typeof entryRef.id === 'string' && entryRef.id.trim()) {
+    ref.id = entryRef.id.trim();
+  }
+  if (Number.isFinite(entryRef.index)) {
+    ref.index = Math.trunc(entryRef.index);
+  }
+  if (typeof entryRef.name === 'string' && entryRef.name.trim()) {
+    ref.name = entryRef.name.trim();
+  }
+  return ref;
+}
+
+async function resolveLorebookEntryRef(entries, rawRef, { allowMissing = false } = {}) {
+  const entryRef = normalizeEntryRef(rawRef);
+  if (entryRef.id) {
+    const index = entries.findIndex((entry) => String(entry?.id || '') === entryRef.id);
+    if (index !== -1) return { ok: true, index, entry: entries[index], entryRef };
+    if (allowMissing) return { ok: true, index: -1, entry: null, entryRef };
+    return { ok: false, code: 'E_ENTRY_NOT_FOUND', message: `世界书条目不存在: ${entryRef.id}` };
+  }
+
+  if (Number.isInteger(entryRef.index)) {
+    if (entryRef.index >= 0 && entryRef.index < entries.length) {
+      return { ok: true, index: entryRef.index, entry: entries[entryRef.index], entryRef };
+    }
+    if (allowMissing) return { ok: true, index: -1, entry: null, entryRef };
+    return { ok: false, code: 'E_ENTRY_NOT_FOUND', message: '世界书条目索引越界' };
+  }
+
+  if (entryRef.name) {
+    const matches = entries
+      .map((entry, index) => ({ entry, index }))
+      .filter(({ entry }) => getEntryDisplayName(entry) === entryRef.name);
+    if (matches.length === 1) {
+      return { ok: true, index: matches[0].index, entry: matches[0].entry, entryRef };
+    }
+    if (matches.length > 1) {
+      return {
+        ok: false,
+        code: 'E_AMBIGUOUS_ENTRY',
+        message: `世界书条目名称不唯一: ${entryRef.name}`,
+        candidates: matches.map(({ entry, index }) => ({
+          index,
+          id: String(entry?.id || ''),
+          name: String(entry?.name || ''),
+          comment: String(entry?.comment || ''),
+        })),
+      };
+    }
+    if (allowMissing) return { ok: true, index: -1, entry: null, entryRef };
+    return { ok: false, code: 'E_ENTRY_NOT_FOUND', message: `世界书条目不存在: ${entryRef.name}` };
+  }
+
+  return { ok: false, code: 'E_CONSTRAINT_VIOLATION', message: 'entry_ref 需要 id、index 或 name' };
+}
+
+function normalizePatchList(patches) {
+  if (!Array.isArray(patches) || patches.length === 0) {
+    return { ok: false, code: 'E_CONSTRAINT_VIOLATION', message: 'patches 必须是非空数组' };
+  }
+  if (patches.length > 50) {
+    return { ok: false, code: 'E_CONSTRAINT_VIOLATION', message: 'patches 数量超过上限' };
+  }
+  return { ok: true, patches };
+}
+
+function normalizeMatchMode(value) {
+  const mode = String(value || 'exact').trim();
+  if (['exact', 'normalized', 'regex'].includes(mode)) return mode;
+  return 'exact';
+}
+
+function normalizeSearchText(value) {
+  return String(value ?? '')
+    .normalize('NFKC')
+    .replace(/[“”„‟]/g, '"')
+    .replace(/[‘’‚‛]/g, "'")
+    .replace(/[，、]/g, ',')
+    .replace(/[。]/g, '.')
+    .replace(/[：]/g, ':')
+    .replace(/[；]/g, ';')
+    .replace(/[！]/g, '!')
+    .replace(/[？]/g, '?')
+    .replace(/[（]/g, '(')
+    .replace(/[）]/g, ')')
+    .replace(/[【［]/g, '[')
+    .replace(/[】］]/g, ']')
+    .replace(/[｛]/g, '{')
+    .replace(/[｝]/g, '}')
+    .replace(/[《]/g, '<')
+    .replace(/[》]/g, '>')
+    .replace(/\s+/g, ' ');
+}
+
+function buildNormalizedIndex(text) {
+  const source = String(text ?? '');
+  let normalized = '';
+  const indexMap = [];
+  let previousWhitespace = false;
+  for (let index = 0; index < source.length;) {
+    const codePoint = source.codePointAt(index);
+    const char = String.fromCodePoint(codePoint);
+    const nextIndex = index + char.length;
+    const normalizedChar = normalizeSearchText(char);
+    for (let subIndex = 0; subIndex < normalizedChar.length; subIndex += 1) {
+      const outChar = normalizedChar[subIndex];
+      if (/\s/u.test(outChar)) {
+        if (previousWhitespace) continue;
+        previousWhitespace = true;
+        normalized += ' ';
+        indexMap.push({ start: index, end: nextIndex });
+        continue;
+      }
+      previousWhitespace = false;
+      normalized += outChar;
+      indexMap.push({ start: index, end: nextIndex });
+    }
+    index = nextIndex;
+  }
+  return { normalized, indexMap };
+}
+
+function buildMatchWarning(mode) {
+  if (mode === 'normalized') {
+    return {
+      code: 'W_NORMALIZED_MATCH_USED',
+      message: '已使用归一化文本匹配',
+      severity: 'info',
+    };
+  }
+  if (mode === 'regex') {
+    return {
+      code: 'W_REGEX_MATCH_USED',
+      message: '已使用正则匹配',
+      severity: 'info',
+    };
+  }
+  return null;
+}
+
+function uniqueWarnings(warnings) {
+  const seen = new Set();
+  const result = [];
+  for (const warning of warnings || []) {
+    const key = `${warning?.code || ''}:${warning?.path || ''}:${warning?.index ?? ''}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(warning);
+  }
+  return result;
+}
+
+function boundedCandidateSnippets(text, needle, { maxSnippets = 5, snippetChars = 96 } = {}) {
+  const source = String(text ?? '');
+  const query = String(needle ?? '').trim();
+  if (!source) return [];
+  const candidates = [];
+  const normalizedSource = normalizeSearchText(source).toLowerCase();
+  const terms = normalizeSearchText(query)
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((item) => item.length >= 2);
+  const pushSnippet = (center) => {
+    const half = Math.max(8, Math.floor(snippetChars / 2));
+    const start = Math.max(0, center - half);
+    const end = Math.min(source.length, start + snippetChars);
+    const snippet = source.slice(start, end);
+    if (snippet && !candidates.includes(snippet)) candidates.push(snippet);
+  };
+  for (const term of terms) {
+    const normalizedIndex = normalizedSource.indexOf(term);
+    if (normalizedIndex !== -1) {
+      pushSnippet(Math.min(source.length, normalizedIndex));
+      if (candidates.length >= maxSnippets) return candidates;
+    }
+  }
+  if (!candidates.length) {
+    const chunks = source.split(/\n{2,}|\n/u).map((item) => item.trim()).filter(Boolean);
+    for (const chunk of chunks.slice(0, maxSnippets)) {
+      candidates.push(chunk.length <= snippetChars ? chunk : `${chunk.slice(0, snippetChars - 3)}...`);
+    }
+  }
+  if (!candidates.length && source) {
+    candidates.push(source.length <= snippetChars ? source : `${source.slice(0, snippetChars - 3)}...`);
+  }
+  return candidates.slice(0, maxSnippets);
+}
+
+function buildAnchorNotFound(message, text, needle) {
+  return {
+    ok: false,
+    code: 'E_ANCHOR_NOT_FOUND',
+    message,
+    candidate_snippets: boundedCandidateSnippets(text, needle),
+  };
+}
+
+function mapNormalizedRange(indexMap, start, end) {
+  if (!indexMap.length || start < 0 || end <= start || start >= indexMap.length) return null;
+  const clampedEnd = Math.min(end, indexMap.length);
+  return {
+    start: indexMap[start].start,
+    end: indexMap[clampedEnd - 1].end,
+  };
+}
+
+function findExactRanges(text, needle, { occurrence = 1, caseSensitive = true } = {}) {
+  const source = String(text ?? '');
+  const target = String(needle ?? '');
+  if (!target) {
+    return { ok: false, code: 'E_CONSTRAINT_VIOLATION', message: 'find/anchor 不能为空' };
+  }
+  const haystack = caseSensitive ? source : source.toLowerCase();
+  const query = caseSensitive ? target : target.toLowerCase();
+  const ranges = [];
+  let from = 0;
+  while (from <= haystack.length) {
+    const index = haystack.indexOf(query, from);
+    if (index === -1) break;
+    ranges.push({ start: index, end: index + target.length, match: source.slice(index, index + target.length) });
+    from = index + Math.max(1, target.length);
+  }
+  if (!ranges.length) {
+    return buildAnchorNotFound(`未找到文本: ${target}`, source, target);
+  }
+  if (occurrence === 'all') return { ok: true, ranges, warnings: [] };
+  const wanted = Math.max(1, Math.trunc(Number(occurrence) || 1));
+  const range = ranges[wanted - 1];
+  if (!range) {
+    return buildAnchorNotFound(`未找到第 ${wanted} 处文本: ${target}`, source, target);
+  }
+  return { ok: true, ranges: [range], warnings: [] };
+}
+
+function findNormalizedRanges(text, needle, { occurrence = 1, caseSensitive = true } = {}) {
+  const source = String(text ?? '');
+  const target = String(needle ?? '');
+  if (!target) {
+    return { ok: false, code: 'E_CONSTRAINT_VIOLATION', message: 'find/anchor 不能为空' };
+  }
+  const sourceIndex = buildNormalizedIndex(source);
+  const normalizedTarget = normalizeSearchText(target);
+  const haystack = caseSensitive ? sourceIndex.normalized : sourceIndex.normalized.toLowerCase();
+  const query = caseSensitive ? normalizedTarget : normalizedTarget.toLowerCase();
+  if (!query) {
+    return { ok: false, code: 'E_CONSTRAINT_VIOLATION', message: 'find/anchor 不能为空' };
+  }
+  const ranges = [];
+  let from = 0;
+  while (from <= haystack.length) {
+    const index = haystack.indexOf(query, from);
+    if (index === -1) break;
+    const range = mapNormalizedRange(sourceIndex.indexMap, index, index + query.length);
+    if (range) {
+      ranges.push({ ...range, match: source.slice(range.start, range.end) });
+    }
+    from = index + Math.max(1, query.length);
+  }
+  if (!ranges.length) {
+    return buildAnchorNotFound(`未找到文本: ${target}`, source, target);
+  }
+  const warnings = [buildMatchWarning('normalized')];
+  if (occurrence === 'all') return { ok: true, ranges, warnings };
+  const wanted = Math.max(1, Math.trunc(Number(occurrence) || 1));
+  const range = ranges[wanted - 1];
+  if (!range) {
+    return buildAnchorNotFound(`未找到第 ${wanted} 处文本: ${target}`, source, target);
+  }
+  return { ok: true, ranges: [range], warnings };
+}
+
+function findRegexRanges(text, pattern, { occurrence = 1, caseSensitive = true } = {}) {
+  const source = String(text ?? '');
+  const rawPattern = String(pattern ?? '');
+  if (!rawPattern) {
+    return { ok: false, code: 'E_CONSTRAINT_VIOLATION', message: 'regex 不能为空' };
+  }
+  let regex;
+  try {
+    const flags = `g${caseSensitive ? '' : 'i'}u`;
+    regex = new RegExp(rawPattern, flags);
+  } catch (error) {
+    return { ok: false, code: 'E_CONSTRAINT_VIOLATION', message: error?.message || '正则无效' };
+  }
+  const ranges = [];
+  let match = regex.exec(source);
+  while (match) {
+    ranges.push({ start: match.index, end: match.index + match[0].length, match: match[0] });
+    if (match[0].length === 0) regex.lastIndex += 1;
+    match = regex.exec(source);
+  }
+  if (!ranges.length) {
+    return buildAnchorNotFound(`未找到正则: ${rawPattern}`, source, rawPattern);
+  }
+  const warnings = [buildMatchWarning('regex')];
+  if (occurrence === 'all') return { ok: true, ranges, warnings };
+  const wanted = Math.max(1, Math.trunc(Number(occurrence) || 1));
+  const range = ranges[wanted - 1];
+  if (!range) {
+    return buildAnchorNotFound(`未找到第 ${wanted} 处正则: ${rawPattern}`, source, rawPattern);
+  }
+  return { ok: true, ranges: [range], warnings };
+}
+
+function findTextRanges(text, needle, spec = {}) {
+  const mode = normalizeMatchMode(spec.match_mode);
+  const options = {
+    occurrence: spec.occurrence ?? 1,
+    caseSensitive: spec.case_sensitive !== false,
+  };
+  if (mode === 'normalized') return findNormalizedRanges(text, needle, options);
+  if (mode === 'regex') return findRegexRanges(text, needle, options);
+  return findExactRanges(text, needle, options);
+}
+
+function replaceRanges(text, ranges, replacement) {
+  const source = String(text ?? '');
+  const sorted = [...ranges].sort((a, b) => b.start - a.start);
+  let nextText = source;
+  for (const range of sorted) {
+    nextText = `${nextText.slice(0, range.start)}${String(replacement ?? '')}${nextText.slice(range.end)}`;
+  }
+  return nextText;
+}
+
+function findBetweenRange(text, spec) {
+  const source = String(text ?? '');
+  const startResult = findTextRanges(source, spec.start_anchor, {
+    ...spec,
+    occurrence: spec.occurrence ?? 1,
+  });
+  if (!startResult.ok) {
+    return {
+      ...startResult,
+      message: startResult.code === 'E_ANCHOR_NOT_FOUND'
+        ? `未找到起始锚点: ${String(spec.start_anchor || '')}`
+        : startResult.message,
+    };
+  }
+  const startRange = startResult.ranges[0];
+  const endSearchText = source.slice(startRange.end);
+  const endResult = findTextRanges(endSearchText, spec.end_anchor, {
+    ...spec,
+    occurrence: 1,
+  });
+  if (!endResult.ok) {
+    return {
+      ...endResult,
+      message: endResult.code === 'E_ANCHOR_NOT_FOUND'
+        ? `未找到结束锚点: ${String(spec.end_anchor || '')}`
+        : endResult.message,
+    };
+  }
+  const relativeEndRange = endResult.ranges[0];
+  const endRange = {
+    start: startRange.end + relativeEndRange.start,
+    end: startRange.end + relativeEndRange.end,
+  };
+  const includeAnchors = spec.include_anchors === true;
+  const range = includeAnchors
+    ? { start: startRange.start, end: endRange.end }
+    : { start: startRange.end, end: endRange.start };
+  return {
+    ok: true,
+    range,
+    warnings: uniqueWarnings([
+      ...(startResult.warnings || []),
+      ...(endResult.warnings || []),
+    ]),
+  };
+}
+
+function applyOneTextPatch(text, patch) {
+  if (!patch || typeof patch !== 'object' || Array.isArray(patch)) {
+    return { ok: false, code: 'E_CONSTRAINT_VIOLATION', message: 'patch 项必须为对象' };
+  }
+
+  if (patch.replace && typeof patch.replace === 'object') {
+    const spec = patch.replace;
+    const result = findTextRanges(text, spec.find, spec);
+    if (!result.ok) return result;
+    return {
+      ok: true,
+      text: replaceRanges(text, result.ranges, spec.replace),
+      warnings: result.warnings || [],
+    };
+  }
+
+  if (patch.delete && typeof patch.delete === 'object') {
+    const spec = patch.delete;
+    const result = findTextRanges(text, spec.find, spec);
+    if (!result.ok) return result;
+    return {
+      ok: true,
+      text: replaceRanges(text, result.ranges, ''),
+      warnings: result.warnings || [],
+    };
+  }
+
+  const insertSpec = patch.insert_before || patch.insert_after || null;
+  if (insertSpec && typeof insertSpec === 'object') {
+    const isAfter = Boolean(patch.insert_after);
+    const result = findTextRanges(text, insertSpec.anchor, insertSpec);
+    if (!result.ok) {
+      return result.code === 'E_ANCHOR_NOT_FOUND'
+        ? { ...result, message: `未找到锚点: ${String(insertSpec.anchor || '')}` }
+        : result;
+    }
+    const range = result.ranges[0];
+    const at = isAfter ? range.end : range.start;
+    return {
+      ok: true,
+      text: `${text.slice(0, at)}${String(insertSpec.text ?? '')}${text.slice(at)}`,
+      warnings: result.warnings || [],
+    };
+  }
+
+  if (patch.delete_between && typeof patch.delete_between === 'object') {
+    const result = findBetweenRange(text, patch.delete_between);
+    if (!result.ok) return result;
+    return {
+      ok: true,
+      text: replaceRanges(text, [result.range], ''),
+      warnings: result.warnings || [],
+    };
+  }
+
+  if (patch.replace_between && typeof patch.replace_between === 'object') {
+    const result = findBetweenRange(text, patch.replace_between);
+    if (!result.ok) return result;
+    return {
+      ok: true,
+      text: replaceRanges(text, [result.range], patch.replace_between.text),
+      warnings: result.warnings || [],
+    };
+  }
+
+  return {
+    ok: false,
+    code: 'E_CONSTRAINT_VIOLATION',
+    message: 'patch 必须包含 replace、insert_before、insert_after、delete、delete_between 或 replace_between',
+  };
+}
+
+function applyTextPatches(text, patches) {
+  const normalized = normalizePatchList(patches);
+  if (!normalized.ok) return normalized;
+  let nextText = String(text ?? '');
+  const warnings = [];
+  for (const patch of normalized.patches) {
+    const result = applyOneTextPatch(nextText, patch);
+    if (!result.ok) return result;
+    nextText = result.text;
+    warnings.push(...(result.warnings || []));
+    if (measureValue(nextText).totalBytes > MAX_PATCH_CHARS) {
+      return { ok: false, code: 'E_SIZE_LIMIT', message: '补丁结果超过大小上限' };
+    }
+  }
+  return { ok: true, text: nextText, warnings: uniqueWarnings(warnings) };
+}
+
+async function buildCardFieldDiff({ path, beforeValue, afterValue, changeType = 'update' }) {
+  const beforeBytes = measureValue(beforeValue).totalBytes;
+  const afterBytes = measureValue(afterValue).totalBytes;
+  return {
+    resource: 'card_field',
+    path,
+    change_type: valuesEqual(beforeValue, afterValue) ? 'noop' : changeType,
+    before_hash: await hashValue(beforeValue),
+    after_hash: await hashValue(afterValue),
+    before_bytes: beforeBytes,
+    after_bytes: afterBytes,
+    delta_bytes: afterBytes - beforeBytes,
+    before_value: beforeValue,
+    after_value: afterValue,
+  };
 }
 
 function isDeprecated(field) {
@@ -1187,9 +1816,15 @@ async function viewField({ context, toolCallId, args, card }) {
   const maxChars = Number.isFinite(args?.max_chars) ? args.max_chars : null;
   const maxBytes = Number.isFinite(args?.max_bytes) ? args.max_bytes : null;
   const limitChars = maxChars ?? getMaxValueChars();
+  const offset = normalizeInteger(args?.offset, 0, { min: 0 });
+  const isStringRead = typeof valueResult.value === 'string';
+  const readableValue = typeof valueResult.value === 'string'
+    ? valueResult.value.slice(offset)
+    : valueResult.value;
+  const fullMeasure = isStringRead ? measureValue(valueResult.value) : null;
   let truncation;
   try {
-    truncation = applyTruncate(valueResult.value, limitChars, maxBytes);
+    truncation = applyTruncate(readableValue, limitChars, maxBytes);
   } catch (error) {
     return buildErrorResponse({
       context,
@@ -1212,7 +1847,7 @@ async function viewField({ context, toolCallId, args, card }) {
   let arrayPath = null;
   let arrayHash = null;
   if (arrayAncestor) {
-    arrayPath = resolved?.aliasUsed ? applyCanonicalPath(rawPath, basePath, resolved.canonicalPath) : basePath;
+    arrayPath = resolved?.aliasUsed ? resolved.canonicalPath : basePath;
     const arrayValue = getByPath(card, arrayPath);
     if (Array.isArray(arrayValue)) {
       arrayHash = await hashValue(arrayValue);
@@ -1238,267 +1873,19 @@ async function viewField({ context, toolCallId, args, card }) {
     payload: {
       value: truncation.value,
       current_hash: currentHash,
+      offset,
       truncated: truncation.truncated,
       returned_chars: truncation.returnedChars,
       returned_bytes: truncation.returnedBytes,
-      total_chars: truncation.totalChars,
-      total_bytes: truncation.totalBytes,
+      total_chars: fullMeasure?.totalChars ?? truncation.totalChars,
+      total_bytes: fullMeasure?.totalBytes ?? truncation.totalBytes,
       array_path: arrayPath,
       array_hash: arrayHash,
-      canonical_path: resolved?.aliasUsed ? effectivePath : undefined,
+      canonical_path: effectivePath,
       alias_used: resolved?.aliasUsed || undefined,
     },
     warnings,
     diffSummary: null,
-  });
-}
-
-async function editField({ context, toolCallId, args, card }) {
-  const pathResult = normalizePathInput(args?.path);
-  if (!pathResult.ok) {
-    return buildErrorResponse({
-      context,
-      toolCallId,
-      code: pathResult.error,
-      message: pathResult.message,
-      path: pathResult.path,
-    });
-  }
-  const rawPath = pathResult.path;
-  const warnings = [...(pathResult.warnings || [])];
-
-  if (!Object.prototype.hasOwnProperty.call(args || {}, 'new_value')) {
-    return buildErrorResponse({
-      context,
-      toolCallId,
-      code: 'E_CONSTRAINT_VIOLATION',
-      message: 'new_value 必填',
-      path: rawPath,
-    });
-  }
-
-  const parsed = pathResult.parsed;
-
-  const arrayAncestor = findNearestArrayAncestor(parsed.tokens);
-  const basePath = arrayAncestor ? tokensToPath(arrayAncestor.arrayTokens) : rawPath;
-  const resolved = resolveFieldPath(basePath);
-  if (resolved?.aliasAmbiguous) {
-    return buildErrorResponse({
-      context,
-      toolCallId,
-      code: 'E_INTERNAL',
-      message: '字段别名存在歧义',
-      path: rawPath,
-    });
-  }
-  if (!resolved?.field) {
-    return buildErrorResponse({
-      context,
-      toolCallId,
-      code: 'E_PATH_NOT_FOUND',
-      message: '字段未注册',
-      path: rawPath,
-    });
-  }
-  if (arrayAncestor) {
-    return buildErrorResponse({
-      context,
-      toolCallId,
-      code: 'E_PERMISSION_DENIED',
-      message: '数组项不支持 edit_field',
-      path: rawPath,
-    });
-  }
-  if (!canWriteField(resolved.field) || isDeprecated(resolved.field)) {
-    return buildErrorResponse({
-      context,
-      toolCallId,
-      code: 'E_PERMISSION_DENIED',
-      message: '字段不可写',
-      path: rawPath,
-    });
-  }
-  if (isHighRisk(resolved.field) && !HIGH_RISK_WRITE_ALLOWLIST.has(resolved.canonicalPath)) {
-    return buildErrorResponse({
-      context,
-      toolCallId,
-      code: 'E_PERMISSION_DENIED',
-      message: '高风险字段未授权写入',
-      path: rawPath,
-    });
-  }
-
-  const effectivePath = resolved?.aliasUsed
-    ? applyCanonicalPath(rawPath, basePath, resolved.canonicalPath)
-    : rawPath;
-  const effectiveParsed = resolved?.aliasUsed ? parsePathTokens(effectivePath) : parsed;
-  if (resolved?.aliasUsed && !effectiveParsed.ok) {
-    return buildErrorResponse({
-      context,
-      toolCallId,
-      code: effectiveParsed.error,
-      message: effectiveParsed.message,
-      path: effectivePath,
-    });
-  }
-
-  const current = getValueByTokens(card, effectiveParsed.tokens);
-  if (!current.exists) {
-    return buildErrorResponse({
-      context,
-      toolCallId,
-      code: 'E_PATH_NOT_FOUND',
-      message: '路径不存在',
-      path: rawPath,
-    });
-  }
-
-  const allowNull = Boolean(resolved.field.nullable);
-  const sizeCheck = checkValueSize(args.new_value);
-  if (!sizeCheck.ok) {
-    return buildErrorResponse({
-      context,
-      toolCallId,
-      code: sizeCheck.code,
-      message: sizeCheck.message,
-      path: rawPath,
-    });
-  }
-  const typeCheck = validateValueType(args.new_value, resolved.field, allowNull);
-  if (!typeCheck.ok) {
-    return buildErrorResponse({
-      context,
-      toolCallId,
-      code: typeCheck.code,
-      message: typeCheck.message,
-      path: rawPath,
-    });
-  }
-  const constraintsCheck = validateConstraints(args.new_value, resolved.field);
-  if (!constraintsCheck.ok) {
-    return buildErrorResponse({
-      context,
-      toolCallId,
-      code: constraintsCheck.code,
-      message: constraintsCheck.message,
-      path: rawPath,
-    });
-  }
-
-  const requireHash = requireOldHash(resolved.field);
-  if (requireHash && !args?.old_hash) {
-    return buildErrorResponse({
-      context,
-      toolCallId,
-      code: 'E_PRECONDITION_FAILED',
-      message: 'risk>=medium 需要 old_hash',
-      path: rawPath,
-    });
-  }
-  if (!args?.old_hash && !Object.prototype.hasOwnProperty.call(args || {}, 'old_value')) {
-    return buildErrorResponse({
-      context,
-      toolCallId,
-      code: 'E_CONSTRAINT_VIOLATION',
-      message: 'old_hash 或 old_value 至少提供一个',
-      path: rawPath,
-    });
-  }
-
-  let currentHash;
-  try {
-    currentHash = await hashValue(current.value);
-  } catch (error) {
-    return buildErrorResponse({
-      context,
-      toolCallId,
-      code: 'E_INTERNAL',
-      message: error?.message || '哈希计算失败',
-      path: rawPath,
-    });
-  }
-
-  if (args?.old_hash && args.old_hash !== currentHash) {
-    return buildErrorResponse({
-      context,
-      toolCallId,
-      code: 'E_CAS_MISMATCH',
-      message: 'old_hash 与当前值不匹配',
-      path: rawPath,
-    });
-  }
-  if (Object.prototype.hasOwnProperty.call(args || {}, 'old_value')) {
-    if (!valuesEqual(args.old_value, current.value)) {
-      return buildErrorResponse({
-        context,
-        toolCallId,
-        code: 'E_CAS_MISMATCH',
-        message: 'old_value 与当前值不匹配',
-        path: rawPath,
-      });
-    }
-  }
-
-  const cloned = deepClone(card);
-  const setResult = setValueByTokens(cloned, effectiveParsed.tokens, args.new_value);
-  if (!setResult.ok) {
-    return buildErrorResponse({
-      context,
-      toolCallId,
-      code: setResult.error,
-      message: setResult.message,
-      path: rawPath,
-    });
-  }
-
-  const newHash = await hashValue(args.new_value);
-  warnings.push(...collectContentWarnings(current.value, args.new_value));
-  if (sizeCheck.warnings?.length) {
-    warnings.push(...sizeCheck.warnings);
-  }
-  if (resolved.aliasUsed) {
-    warnings.push({
-      code: 'W_ALIAS_USED',
-      message: `使用别名，规范路径为 ${resolved.canonicalPath}`,
-      severity: 'info',
-      path: resolved.canonicalPath,
-    });
-  }
-  const diffSummary = applyAliasSummary(
-    {
-      path: effectivePath,
-      change_type: 'update',
-      before_hash: currentHash,
-      after_hash: newHash,
-      before_bytes: measureValue(current.value).totalBytes,
-      after_bytes: measureValue(args.new_value).totalBytes,
-      delta_bytes: measureValue(args.new_value).totalBytes - measureValue(current.value).totalBytes,
-    },
-    resolved?.aliasUsed ? effectivePath : null,
-    resolved?.aliasUsed
-  );
-
-  const payload = {
-    new_hash: newHash,
-    new_card: cloned,
-  };
-  const attach = maybeAttachReturnValue(payload, warnings, args.new_value, args);
-  if (!attach.ok) {
-    return buildErrorResponse({
-      context,
-      toolCallId,
-      code: attach.code,
-      message: attach.message,
-      path: effectivePath,
-    });
-  }
-
-  return buildOkResponse({
-    context,
-    toolCallId,
-    payload,
-    warnings,
-    diffSummary,
   });
 }
 
@@ -1553,7 +1940,7 @@ async function setField({ context, toolCallId, args, card }) {
       context,
       toolCallId,
       code: 'E_PERMISSION_DENIED',
-      message: '数组项不支持 set_field',
+      message: 'card_set_field 不支持数组项路径',
       path: rawPath,
     });
   }
@@ -1738,240 +2125,6 @@ async function setField({ context, toolCallId, args, card }) {
   });
 }
 
-async function clearField({ context, toolCallId, args, card }) {
-  const pathResult = normalizePathInput(args?.path);
-  const mode = args?.mode || 'null';
-  if (!pathResult.ok) {
-    return buildErrorResponse({
-      context,
-      toolCallId,
-      code: pathResult.error,
-      message: pathResult.message,
-      path: pathResult.path,
-    });
-  }
-  const rawPath = pathResult.path;
-  const parsed = pathResult.parsed;
-  const warnings = [...(pathResult.warnings || [])];
-  const arrayAncestor = findNearestArrayAncestor(parsed.tokens);
-  if (arrayAncestor) {
-    return buildErrorResponse({
-      context,
-      toolCallId,
-      code: 'E_PERMISSION_DENIED',
-      message: '数组项不支持 clear_field',
-      path: rawPath,
-    });
-  }
-  const resolved = resolveFieldPath(rawPath);
-  if (!resolved?.field) {
-    return buildErrorResponse({
-      context,
-      toolCallId,
-      code: 'E_PATH_NOT_FOUND',
-      message: '字段未注册',
-      path: rawPath,
-    });
-  }
-  if (!canWriteField(resolved.field) || isDeprecated(resolved.field)) {
-    return buildErrorResponse({
-      context,
-      toolCallId,
-      code: 'E_PERMISSION_DENIED',
-      message: '字段不可写',
-      path: rawPath,
-    });
-  }
-  if (isHighRisk(resolved.field) && !HIGH_RISK_WRITE_ALLOWLIST.has(resolved.canonicalPath)) {
-    return buildErrorResponse({
-      context,
-      toolCallId,
-      code: 'E_PERMISSION_DENIED',
-      message: '高风险字段未授权写入',
-      path: rawPath,
-    });
-  }
-
-  const effectivePath = resolved?.aliasUsed
-    ? applyCanonicalPath(rawPath, rawPath, resolved.canonicalPath)
-    : rawPath;
-  const effectiveParsed = resolved?.aliasUsed ? parsePathTokens(effectivePath) : parsed;
-  if (resolved?.aliasUsed && !effectiveParsed.ok) {
-    return buildErrorResponse({
-      context,
-      toolCallId,
-      code: effectiveParsed.error,
-      message: effectiveParsed.message,
-      path: effectivePath,
-    });
-  }
-
-  const current = getValueByTokens(card, effectiveParsed.tokens);
-  if (!current.exists) {
-    return buildErrorResponse({
-      context,
-      toolCallId,
-      code: 'E_PATH_NOT_FOUND',
-      message: '路径不存在',
-      path: rawPath,
-    });
-  }
-
-  let nextValue = null;
-  if (mode === 'default') {
-    if (!Object.prototype.hasOwnProperty.call(resolved.field, 'default')) {
-      return buildErrorResponse({
-        context,
-        toolCallId,
-        code: 'E_CONSTRAINT_VIOLATION',
-        message: '字段无默认值，无法使用 default 模式',
-        path: rawPath,
-      });
-    }
-    nextValue = resolved.field.default;
-  } else if (mode === 'null') {
-    if (!resolved.field.nullable) {
-      return buildErrorResponse({
-        context,
-        toolCallId,
-        code: 'E_CONSTRAINT_VIOLATION',
-        message: '字段不可置为 null',
-        path: rawPath,
-      });
-    }
-    nextValue = null;
-  } else {
-    return buildErrorResponse({
-      context,
-      toolCallId,
-      code: 'E_CONSTRAINT_VIOLATION',
-      message: 'mode 仅支持 null 或 default',
-      path: rawPath,
-    });
-  }
-
-  const requireHash = requireOldHash(resolved.field);
-  if (requireHash && !args?.old_hash) {
-    return buildErrorResponse({
-      context,
-      toolCallId,
-      code: 'E_PRECONDITION_FAILED',
-      message: 'risk>=medium 需要 old_hash',
-      path: rawPath,
-    });
-  }
-  let currentHash;
-  try {
-    currentHash = await hashValue(current.value);
-  } catch (error) {
-    return buildErrorResponse({
-      context,
-      toolCallId,
-      code: 'E_INTERNAL',
-      message: error?.message || '哈希计算失败',
-      path: rawPath,
-    });
-  }
-  if (args?.old_hash && args.old_hash !== currentHash) {
-    return buildErrorResponse({
-      context,
-      toolCallId,
-      code: 'E_CAS_MISMATCH',
-      message: 'old_hash 与当前值不匹配',
-      path: rawPath,
-    });
-  }
-
-  const cloned = deepClone(card);
-  const setResult = setValueByTokens(cloned, effectiveParsed.tokens, nextValue);
-  if (!setResult.ok) {
-    return buildErrorResponse({
-      context,
-      toolCallId,
-      code: setResult.error,
-      message: setResult.message,
-      path: rawPath,
-    });
-  }
-
-  const newHash = await hashValue(nextValue);
-  warnings.push(...collectContentWarnings(current.value, nextValue));
-  const sizeCheck = checkValueSize(nextValue);
-  if (!sizeCheck.ok) {
-    return buildErrorResponse({
-      context,
-      toolCallId,
-      code: sizeCheck.code,
-      message: sizeCheck.message,
-      path: rawPath,
-    });
-  }
-  if (sizeCheck.warnings?.length) {
-    warnings.push(...sizeCheck.warnings);
-  }
-  const constraintsCheck = validateConstraints(nextValue, resolved.field);
-  if (!constraintsCheck.ok) {
-    return buildErrorResponse({
-      context,
-      toolCallId,
-      code: constraintsCheck.code,
-      message: constraintsCheck.message,
-      path: rawPath,
-    });
-  }
-  if (resolved.aliasUsed) {
-    warnings.push({
-      code: 'W_ALIAS_USED',
-      message: `使用别名，规范路径为 ${resolved.canonicalPath}`,
-      severity: 'info',
-      path: resolved.canonicalPath,
-    });
-  }
-  if (!args?.old_hash && !requireHash) {
-    warnings.push({
-      code: 'W_NON_CAS_WRITE',
-      message: '未提供 old_hash，写入未使用 CAS',
-      severity: 'info',
-      path: rawPath,
-    });
-  }
-
-  const payload = {
-    new_hash: newHash,
-    new_card: cloned,
-  };
-  const attach = maybeAttachReturnValue(payload, warnings, nextValue, args);
-  if (!attach.ok) {
-    return buildErrorResponse({
-      context,
-      toolCallId,
-      code: attach.code,
-      message: attach.message,
-      path: effectivePath,
-    });
-  }
-
-  return buildOkResponse({
-    context,
-    toolCallId,
-    payload,
-    warnings,
-    diffSummary: applyAliasSummary(
-      {
-        path: effectivePath,
-        change_type: 'update',
-        before_hash: currentHash,
-        after_hash: newHash,
-        before_bytes: measureValue(current.value).totalBytes,
-        after_bytes: measureValue(nextValue).totalBytes,
-        delta_bytes: measureValue(nextValue).totalBytes - measureValue(current.value).totalBytes,
-      },
-      resolved?.aliasUsed ? effectivePath : null,
-      resolved?.aliasUsed
-    ),
-  });
-}
-
 async function appendEntry({ context, toolCallId, args, card }) {
   const pathResult = normalizePathInput(args?.path);
   if (!pathResult.ok) {
@@ -2000,7 +2153,7 @@ async function appendEntry({ context, toolCallId, args, card }) {
       context,
       toolCallId,
       code: 'E_PATH_INVALID',
-      message: 'append_entry 需要数组本体路径',
+      message: 'card_edit_items append 需要数组本体路径',
       path: rawPath,
     });
   }
@@ -2219,7 +2372,7 @@ async function removeEntry({ context, toolCallId, args, card }) {
       context,
       toolCallId,
       code: 'E_PATH_INVALID',
-      message: 'remove_entry 需要数组项路径',
+      message: 'card_edit_items remove 需要数组项路径',
       path: rawPath,
     });
   }
@@ -2391,7 +2544,7 @@ async function moveEntry({ context, toolCallId, args, card }) {
       context,
       toolCallId,
       code: 'E_PATH_INVALID',
-      message: 'move_entry 需要数组项路径',
+      message: 'card_edit_items move 需要数组项路径',
       path: rawPath,
     });
   }
@@ -3046,6 +3199,1165 @@ async function deleteSkillTool({ context, toolCallId, args, skillsRepository }) 
   }
 }
 
+async function cardListFieldsTool({ context, toolCallId, args, card }) {
+  const path = typeof args?.path === 'string' ? args.path.trim() : '';
+  if (isCharacterBookPath(path)) {
+    return buildCharacterBookBlockedResponse({ context, toolCallId, path });
+  }
+  const result = await listFields({ context, toolCallId, args, card });
+  if (result?.status === 'ok' && Array.isArray(result.fields)) {
+    return {
+      ...result,
+      fields: result.fields.filter((field) => !isCharacterBookPath(field?.path)),
+    };
+  }
+  return result;
+}
+
+async function cardReadFieldTool({ context, toolCallId, args, card }) {
+  const path = typeof args?.path === 'string' ? args.path.trim() : '';
+  if (isCharacterBookPath(path)) {
+    return buildCharacterBookBlockedResponse({ context, toolCallId, path });
+  }
+  return viewField({ context, toolCallId, args, card });
+}
+
+async function cardSetFieldTool({ context, toolCallId, args, card }) {
+  const path = typeof args?.path === 'string' ? args.path.trim() : '';
+  if (isCharacterBookPath(path)) {
+    return buildCharacterBookBlockedResponse({ context, toolCallId, path });
+  }
+  return setField({
+    context,
+    toolCallId,
+    args: {
+      path: args?.path,
+      value: args?.value,
+      old_hash: args?.expected_hash,
+      return_value: args?.return_value,
+      max_chars: args?.max_chars,
+      max_bytes: args?.max_bytes,
+    },
+    card,
+  });
+}
+
+async function cardPatchTextTool({ context, toolCallId, args, card }) {
+  const path = typeof args?.path === 'string' ? args.path.trim() : '';
+  if (isCharacterBookPath(path)) {
+    return buildCharacterBookBlockedResponse({ context, toolCallId, path });
+  }
+  const pathResult = normalizePathInput(args?.path);
+  if (!pathResult.ok) {
+    return buildErrorResponse({
+      context,
+      toolCallId,
+      code: pathResult.error,
+      message: pathResult.message,
+      path: pathResult.path,
+    });
+  }
+  const rawPath = pathResult.path;
+  const parsed = pathResult.parsed;
+  const arrayAncestor = findNearestArrayAncestor(parsed.tokens);
+  const scope = args?.scope === 'items' ? 'items' : 'field';
+  const basePath = arrayAncestor ? tokensToPath(arrayAncestor.arrayTokens) : rawPath;
+  const resolved = resolveFieldPath(basePath);
+  if (resolved?.aliasAmbiguous) {
+    return buildErrorResponse({
+      context,
+      toolCallId,
+      code: 'E_INTERNAL',
+      message: '字段别名存在歧义',
+      path: rawPath,
+    });
+  }
+  if (!resolved?.field) {
+    return buildErrorResponse({
+      context,
+      toolCallId,
+      code: 'E_PATH_NOT_FOUND',
+      message: '字段未注册',
+      path: rawPath,
+    });
+  }
+  if (isDeprecated(resolved.field)) {
+    return buildErrorResponse({
+      context,
+      toolCallId,
+      code: 'E_PERMISSION_DENIED',
+      message: '字段不可写',
+      path: rawPath,
+    });
+  }
+  if (isHighRisk(resolved.field) && !HIGH_RISK_WRITE_ALLOWLIST.has(resolved.canonicalPath)) {
+    return buildErrorResponse({
+      context,
+      toolCallId,
+      code: 'E_PERMISSION_DENIED',
+      message: '高风险字段未授权写入',
+      path: rawPath,
+    });
+  }
+
+  const effectivePath = resolved?.aliasUsed
+    ? applyCanonicalPath(rawPath, basePath, resolved.canonicalPath)
+    : rawPath;
+  const effectiveParsed = resolved?.aliasUsed ? parsePathTokens(effectivePath) : parsed;
+  if (resolved?.aliasUsed && !effectiveParsed.ok) {
+    return buildErrorResponse({
+      context,
+      toolCallId,
+      code: effectiveParsed.error,
+      message: effectiveParsed.message,
+      path: effectivePath,
+    });
+  }
+
+  const warnings = [...(pathResult.warnings || [])];
+  if (resolved.aliasUsed) {
+    warnings.push({
+      code: 'W_ALIAS_USED',
+      message: `使用别名，规范路径为 ${resolved.canonicalPath}`,
+      severity: 'info',
+      path: resolved.canonicalPath,
+    });
+  }
+
+  if (!arrayAncestor && scope === 'field' && resolved.field.type === 'string') {
+    if (!canWriteField(resolved.field)) {
+      return buildErrorResponse({
+        context,
+        toolCallId,
+        code: 'E_PERMISSION_DENIED',
+        message: '字段不可写',
+        path: rawPath,
+      });
+    }
+    const current = getValueByTokens(card, effectiveParsed.tokens);
+    if (!current.exists) {
+      return buildErrorResponse({
+        context,
+        toolCallId,
+        code: 'E_PATH_NOT_FOUND',
+        message: '路径不存在',
+        path: effectivePath,
+      });
+    }
+    if (typeof current.value !== 'string') {
+      return buildErrorResponse({
+        context,
+        toolCallId,
+        code: 'E_TYPE_MISMATCH',
+        message: 'card_patch_text 仅支持字符串字段',
+        path: effectivePath,
+      });
+    }
+    const patchResult = applyTextPatches(current.value, args?.patches);
+    if (!patchResult.ok) {
+      return attachPatchErrorDetails(buildErrorResponse({
+        context,
+        toolCallId,
+        code: patchResult.code,
+        message: patchResult.message,
+        path: effectivePath,
+      }), patchResult);
+    }
+    const result = await setField({
+      context,
+      toolCallId,
+      args: {
+        path: effectivePath,
+        value: patchResult.text,
+        old_hash: args?.expected_hash,
+        return_value: args?.return_value,
+        max_chars: args?.max_chars,
+        max_bytes: args?.max_bytes,
+      },
+      card,
+    });
+    if (result?.status === 'ok') {
+      result.warnings = uniqueWarnings([...(result.warnings || []), ...(patchResult.warnings || []), ...warnings]);
+    }
+    return result;
+  }
+
+  if (resolved.field.type !== 'array' || resolved.field.array_item_type !== 'string') {
+    return buildErrorResponse({
+      context,
+      toolCallId,
+      code: 'E_TYPE_MISMATCH',
+      message: 'card_patch_text 仅支持字符串字段或字符串数组',
+      path: effectivePath,
+    });
+  }
+  if (!canAppendField(resolved.field) && !canWriteField(resolved.field)) {
+    return buildErrorResponse({
+      context,
+      toolCallId,
+      code: 'E_PERMISSION_DENIED',
+      message: '字段不可写',
+      path: effectivePath,
+    });
+  }
+
+  const arrayPath = resolved?.aliasUsed ? resolved.canonicalPath : basePath;
+  const arrayParsed = parsePathTokens(arrayPath);
+  if (!arrayParsed.ok) {
+    return buildErrorResponse({
+      context,
+      toolCallId,
+      code: arrayParsed.error,
+      message: arrayParsed.message,
+      path: arrayPath,
+    });
+  }
+  const arrayResult = getValueByTokens(card, arrayParsed.tokens);
+  if (!arrayResult.exists) {
+    return buildErrorResponse({
+      context,
+      toolCallId,
+      code: 'E_PATH_NOT_FOUND',
+      message: '路径不存在',
+      path: arrayPath,
+    });
+  }
+  if (!Array.isArray(arrayResult.value)) {
+    return buildErrorResponse({
+      context,
+      toolCallId,
+      code: 'E_TYPE_MISMATCH',
+      message: '目标字段不是数组',
+      path: arrayPath,
+    });
+  }
+  const list = arrayResult.value;
+  const invalidIndex = list.findIndex((item) => typeof item !== 'string');
+  if (invalidIndex !== -1) {
+    return buildErrorResponse({
+      context,
+      toolCallId,
+      code: 'E_TYPE_MISMATCH',
+      message: '数组元素应为 string',
+      path: `${arrayPath}[${invalidIndex}]`,
+    });
+  }
+
+  const currentHash = await hashValue(list);
+  const requireHash = requireOldHash(resolved.field);
+  if (requireHash && !args?.expected_hash) {
+    return buildErrorResponse({
+      context,
+      toolCallId,
+      code: 'E_PRECONDITION_FAILED',
+      message: 'risk>=medium 需要 expected_hash',
+      path: arrayPath,
+    });
+  }
+  if (args?.expected_hash && args.expected_hash !== currentHash) {
+    return buildErrorResponse({
+      context,
+      toolCallId,
+      code: 'E_CAS_MISMATCH',
+      message: 'expected_hash 与当前数组不匹配',
+      path: arrayPath,
+    });
+  }
+
+  const targetIndices = [];
+  if (arrayAncestor) {
+    if (arrayAncestor.indexPosition !== parsed.tokens.length - 1) {
+      return buildErrorResponse({
+        context,
+        toolCallId,
+        code: 'E_PATH_INVALID',
+        message: '字符串数组项不支持子路径',
+        path: rawPath,
+      });
+    }
+    if (arrayAncestor.index < 0 || arrayAncestor.index >= list.length) {
+      return buildErrorResponse({
+        context,
+        toolCallId,
+        code: 'E_PATH_NOT_FOUND',
+        message: '数组索引越界',
+        path: effectivePath,
+      });
+    }
+    targetIndices.push(arrayAncestor.index);
+  } else if (scope === 'items') {
+    for (let index = 0; index < list.length; index += 1) targetIndices.push(index);
+  } else {
+    return buildErrorResponse({
+      context,
+      toolCallId,
+      code: 'E_TYPE_MISMATCH',
+      message: '数组字段需使用 scope="items" 或指定数组项路径',
+      path: arrayPath,
+    });
+  }
+
+  const cloned = deepClone(card);
+  const nextList = getByPath(cloned, arrayPath);
+  const matchedIndices = [];
+  const changedIndices = [];
+  const failedItems = [];
+  const itemHashes = [];
+  const diffSummaries = [];
+
+  for (const index of targetIndices) {
+    const beforeValue = list[index];
+    const beforeHash = await hashValue(beforeValue);
+    const patchResult = applyTextPatches(beforeValue, args?.patches);
+    if (!patchResult.ok) {
+      const failure = {
+        index,
+        path: `${arrayPath}[${index}]`,
+        code: patchResult.code,
+        message: patchResult.message,
+      };
+      if (patchResult.candidate_snippets) failure.candidate_snippets = patchResult.candidate_snippets;
+      failedItems.push(failure);
+      continue;
+    }
+    matchedIndices.push(index);
+    nextList[index] = patchResult.text;
+    const afterHash = await hashValue(nextList[index]);
+    itemHashes.push({
+      index,
+      content_hash: beforeHash,
+      new_hash: afterHash,
+    });
+    warnings.push(...(patchResult.warnings || []));
+    warnings.push(...collectContentWarnings(beforeValue, nextList[index]));
+    if (!valuesEqual(beforeValue, nextList[index])) {
+      changedIndices.push(index);
+    }
+    diffSummaries.push(await buildCardFieldDiff({
+      path: `${arrayPath}[${index}]`,
+      beforeValue,
+      afterValue: nextList[index],
+    }));
+  }
+
+  if (!matchedIndices.length) {
+    return buildErrorResponse({
+      context,
+      toolCallId,
+      code: 'E_ANCHOR_NOT_FOUND',
+      message: '没有数组项匹配补丁锚点',
+      path: arrayPath,
+      warnings: uniqueWarnings(warnings),
+    });
+  }
+
+  const sizeCheck = checkValueSize(nextList);
+  if (!sizeCheck.ok) {
+    return buildErrorResponse({
+      context,
+      toolCallId,
+      code: sizeCheck.code,
+      message: sizeCheck.message,
+      path: arrayPath,
+    });
+  }
+  const constraintsCheck = validateConstraints(nextList, resolved.field);
+  if (!constraintsCheck.ok) {
+    return buildErrorResponse({
+      context,
+      toolCallId,
+      code: constraintsCheck.code,
+      message: constraintsCheck.message,
+      path: arrayPath,
+    });
+  }
+  if (sizeCheck.warnings?.length) warnings.push(...sizeCheck.warnings);
+  if (!args?.expected_hash && !requireHash) {
+    warnings.push({
+      code: 'W_NON_CAS_WRITE',
+      message: '未提供 expected_hash，写入未使用 CAS',
+      severity: 'info',
+      path: arrayPath,
+    });
+  }
+  if (failedItems.length) {
+    warnings.push({
+      code: 'W_PARTIAL_PATCH_APPLIED',
+      message: '部分数组项未应用补丁',
+      severity: 'warn',
+      path: arrayPath,
+    });
+  }
+
+  const changed = changedIndices.length > 0;
+  const newHash = await hashValue(nextList);
+  const payload = {
+    changed,
+    current_hash: newHash,
+    new_hash: newHash,
+    new_card: changed ? cloned : undefined,
+    matched_indices: matchedIndices,
+    changed_indices: changedIndices,
+    item_hashes: itemHashes,
+    failed_items: failedItems,
+  };
+  const attach = maybeAttachReturnValue(payload, warnings, nextList, args);
+  if (!attach.ok) {
+    return buildErrorResponse({
+      context,
+      toolCallId,
+      code: attach.code,
+      message: attach.message,
+      path: arrayPath,
+    });
+  }
+
+  return buildOkResponse({
+    context,
+    toolCallId,
+    payload,
+    warnings: uniqueWarnings(warnings),
+    diffSummary: diffSummaries[0] || null,
+    diffSummaries,
+  });
+}
+
+async function cardListItemsTool({ context, toolCallId, args, card }) {
+  const path = typeof args?.path === 'string' ? args.path.trim() : '';
+  if (isCharacterBookPath(path)) {
+    return buildCharacterBookBlockedResponse({ context, toolCallId, path });
+  }
+  const readResult = await viewField({ context, toolCallId, args: { path }, card });
+  if (readResult.status !== 'ok') return readResult;
+  if (!Array.isArray(readResult.value)) {
+    return buildErrorResponse({
+      context,
+      toolCallId,
+      code: 'E_TYPE_MISMATCH',
+      message: '目标字段不是数组',
+      path,
+    });
+  }
+  const offset = normalizeInteger(args?.offset, 0, { min: 0 });
+  const limit = normalizeInteger(args?.limit, 100, { min: 1, max: 500 });
+  const previewChars = clampPreviewChars(args?.max_preview_chars);
+  const items = [];
+  const visibleItems = readResult.value.slice(offset, offset + limit);
+  for (let itemOffset = 0; itemOffset < visibleItems.length; itemOffset += 1) {
+    const item = visibleItems[itemOffset];
+    const row = {
+      index: offset + itemOffset,
+      type: Array.isArray(item) ? 'array' : typeof item,
+      preview: previewText(typeof item === 'string' ? item : stableStringify(item), previewChars),
+    };
+    if (typeof item === 'string') {
+      row.content_hash = await hashValue(item);
+    }
+    items.push(row);
+  }
+  return buildOkResponse({
+    context,
+    toolCallId,
+    payload: {
+      path,
+      total: readResult.value.length,
+      offset,
+      items,
+      current_hash: readResult.current_hash,
+    },
+    warnings: readResult.warnings || [],
+  });
+}
+
+async function cardEditItemsTool({ context, toolCallId, args, card }) {
+  const path = typeof args?.path === 'string' ? args.path.trim() : '';
+  if (isCharacterBookPath(path)) {
+    return buildCharacterBookBlockedResponse({ context, toolCallId, path });
+  }
+  const operation = String(args?.operation || '').trim();
+  if (operation === 'append') {
+    return appendEntry({
+      context,
+      toolCallId,
+      args: {
+        path,
+        value: args?.value,
+        old_hash: args?.expected_hash,
+        return_value: args?.return_value,
+        max_chars: args?.max_chars,
+        max_bytes: args?.max_bytes,
+      },
+      card,
+    });
+  }
+  if (operation === 'set') {
+    const index = normalizeInteger(args?.index, -1, { min: -1 });
+    const readResult = await viewField({ context, toolCallId, args: { path }, card });
+    if (readResult.status !== 'ok') return readResult;
+    if (!Array.isArray(readResult.value)) {
+      return buildErrorResponse({
+        context,
+        toolCallId,
+        code: 'E_TYPE_MISMATCH',
+        message: '目标字段不是数组',
+        path,
+      });
+    }
+    if (index < 0 || index >= readResult.value.length) {
+      return buildErrorResponse({
+        context,
+        toolCallId,
+        code: 'E_PATH_NOT_FOUND',
+        message: '数组索引越界',
+        path: `${path}[${index}]`,
+      });
+    }
+    if (args?.expected_hash && args.expected_hash !== readResult.current_hash) {
+      return buildErrorResponse({
+        context,
+        toolCallId,
+        code: 'E_CAS_MISMATCH',
+        message: 'expected_hash 与当前数组不匹配',
+        path,
+      });
+    }
+    const cloned = deepClone(card);
+    const nextList = getByPath(cloned, path);
+    const beforeValue = nextList[index];
+    nextList[index] = deepClone(args?.value);
+    const diffSummary = await buildCardFieldDiff({
+      path: `${path}[${index}]`,
+      beforeValue,
+      afterValue: nextList[index],
+    });
+    const payload = {
+      changed: diffSummary.change_type !== 'noop',
+      current_hash: await hashValue(nextList),
+      new_card: cloned,
+    };
+    const warnings = collectContentWarnings(beforeValue, nextList[index]);
+    const attach = maybeAttachReturnValue(payload, warnings, nextList, args);
+    if (!attach.ok) {
+      return buildErrorResponse({
+        context,
+        toolCallId,
+        code: attach.code,
+        message: attach.message,
+        path,
+      });
+    }
+    return buildOkResponse({
+      context,
+      toolCallId,
+      payload,
+      warnings,
+      diffSummary,
+    });
+  }
+  if (operation === 'remove') {
+    const index = normalizeInteger(args?.index, -1, { min: -1 });
+    return removeEntry({
+      context,
+      toolCallId,
+      args: {
+        path: `${path}[${index}]`,
+        old_hash: args?.expected_hash,
+        return_value: args?.return_value,
+        max_chars: args?.max_chars,
+        max_bytes: args?.max_bytes,
+      },
+      card,
+    });
+  }
+  if (operation === 'move') {
+    const fromIndex = normalizeInteger(args?.from_index ?? args?.index, -1, { min: -1 });
+    return moveEntry({
+      context,
+      toolCallId,
+      args: {
+        from_path: `${path}[${fromIndex}]`,
+        to_index: args?.to_index,
+        old_hash: args?.expected_hash,
+        return_value: args?.return_value,
+        max_chars: args?.max_chars,
+        max_bytes: args?.max_bytes,
+      },
+      card,
+    });
+  }
+  return buildErrorResponse({
+    context,
+    toolCallId,
+    code: 'E_CONSTRAINT_VIOLATION',
+    message: 'operation 必须是 append/set/remove/move',
+    path,
+  });
+}
+
+async function lorebookSummaryTool({ context, toolCallId, args, card }) {
+  const cloned = deepClone(card);
+  const book = ensureLorebook(cloned);
+  ensureLorebookEntryIds(book.entries);
+  const maxEntries = normalizeInteger(args?.max_entries, DEFAULT_LOREBOOK_MAX_ENTRIES, {
+    min: 0,
+    max: 1000,
+  });
+  const rows = await buildLorebookRows(
+    book.entries.slice(0, maxEntries),
+    clampPreviewChars(args?.max_preview_chars),
+  );
+  const meta = { ...book };
+  delete meta.entries;
+  return buildOkResponse({
+    context,
+    toolCallId,
+    payload: {
+      total: book.entries.length,
+      ids: book.entries.map((entry) => String(entry?.id || '')),
+      entries: rows,
+      meta,
+      current_hash: await hashValue(book),
+      changed: !valuesEqual(card, cloned),
+      new_card: !valuesEqual(card, cloned) ? cloned : undefined,
+    },
+    warnings: [],
+  });
+}
+
+async function lorebookSearchEntriesTool({ context, toolCallId, args, card }) {
+  const { entries } = getLorebook(card);
+  const query = String(args?.query || '').trim();
+  if (!query) {
+    return buildErrorResponse({
+      context,
+      toolCallId,
+      code: 'E_CONSTRAINT_VIOLATION',
+      message: 'query 不能为空',
+    });
+  }
+  const maxHits = normalizeInteger(args?.max_hits, DEFAULT_LOREBOOK_SEARCH_HITS, {
+    min: 1,
+    max: MAX_LOREBOOK_SEARCH_HITS,
+  });
+  const snippetChars = clampPreviewChars(args?.snippet_chars);
+  const isRegex = args?.mode === 'regex';
+  const matchAll = args?.match === 'all';
+  let regexes = [];
+  const keywords = isRegex
+    ? [query]
+    : query.split(/\s+/).map((item) => item.trim()).filter(Boolean);
+  if (isRegex) {
+    try {
+      regexes = [new RegExp(query, String(args?.flags || '').replace(/[^dgimsuvy]/g, ''))];
+    } catch (error) {
+      return buildErrorResponse({
+        context,
+        toolCallId,
+        code: 'E_CONSTRAINT_VIOLATION',
+        message: error?.message || '正则无效',
+      });
+    }
+  }
+  const matches = [];
+  let filteredByEnabled = 0;
+  let filteredByConstant = 0;
+  let searchedEntries = 0;
+  for (let index = 0; index < entries.length; index += 1) {
+    const entry = entries[index] || {};
+    if (typeof args?.enabled === 'boolean' && (entry.enabled !== false) !== args.enabled) {
+      filteredByEnabled += 1;
+      continue;
+    }
+    if (typeof args?.constant === 'boolean' && (entry.constant === true) !== args.constant) {
+      filteredByConstant += 1;
+      continue;
+    }
+    searchedEntries += 1;
+    const fieldValues = {
+      id: String(entry.id || ''),
+      name: String(entry.name || ''),
+      comment: String(entry.comment || ''),
+      keys: normalizeKeys(entry.keys).join('\n'),
+      secondary_keys: normalizeKeys(entry.secondary_keys).join('\n'),
+      content: String(entry.content || ''),
+    };
+    const matchedFields = [];
+    const fieldRanges = {};
+    for (const [fieldName, fieldValue] of Object.entries(fieldValues)) {
+      if (isRegex) {
+        const regex = regexes[0];
+        regex.lastIndex = 0;
+        const fieldMatches = [];
+        let match = regex.exec(fieldValue);
+        while (match) {
+          fieldMatches.push({
+            start: match.index,
+            end: match.index + match[0].length,
+            match: match[0],
+          });
+          if (!regex.global) break;
+          if (match[0].length === 0) regex.lastIndex += 1;
+          match = regex.exec(fieldValue);
+        }
+        if (fieldMatches.length) {
+          matchedFields.push(fieldName);
+          fieldRanges[fieldName] = fieldMatches;
+        }
+        continue;
+      }
+      const lowerValue = fieldValue.toLowerCase();
+      const ranges = [];
+      for (const keyword of keywords) {
+        const lowerKeyword = keyword.toLowerCase();
+        let from = 0;
+        while (from <= lowerValue.length) {
+          const found = lowerValue.indexOf(lowerKeyword, from);
+          if (found === -1) break;
+          ranges.push({ start: found, end: found + keyword.length, match: fieldValue.slice(found, found + keyword.length), keyword });
+          from = found + Math.max(1, keyword.length);
+        }
+      }
+      if (ranges.length) {
+        matchedFields.push(fieldName);
+        fieldRanges[fieldName] = ranges;
+      }
+    }
+    const hitKeywords = new Set();
+    Object.values(fieldRanges).flat().forEach((range) => {
+      if (range.keyword) hitKeywords.add(range.keyword.toLowerCase());
+    });
+    const matched = isRegex
+      ? matchedFields.length > 0
+      : (matchAll ? keywords.every((keyword) => hitKeywords.has(keyword.toLowerCase())) : matchedFields.length > 0);
+    if (!matched) continue;
+    const snippetField = fieldRanges.content ? 'content' : matchedFields[0];
+    matches.push({
+      ...(await buildLorebookRow(entry, index, snippetChars)),
+      entry_id: String(entry?.id || ''),
+      entry_index: index,
+      matched_fields: matchedFields,
+      snippet: buildSearchSnippet(fieldValues[snippetField], fieldRanges[snippetField], snippetChars),
+    });
+    if (matches.length >= maxHits) break;
+  }
+  const diagnostics = matches.length === 0
+    ? {
+      query,
+      mode: isRegex ? 'regex' : 'text',
+      match: matchAll ? 'all' : 'any',
+      total_entries: entries.length,
+      searched_entries: searchedEntries,
+      filtered_by_enabled: filteredByEnabled,
+      filtered_by_constant: filteredByConstant,
+      searched_fields: ['id', 'name', 'comment', 'keys', 'secondary_keys', 'content'],
+    }
+    : null;
+  return buildOkResponse({
+    context,
+    toolCallId,
+    payload: {
+      total: matches.length,
+      snippets: matches,
+      search_diagnostics: diagnostics,
+    },
+    warnings: [],
+  });
+}
+
+async function lorebookReadEntryTool({ context, toolCallId, args, card }) {
+  const cloned = deepClone(card);
+  const book = ensureLorebook(cloned);
+  const idsChanged = ensureLorebookEntryIds(book.entries);
+  const resolved = await resolveLorebookEntryRef(book.entries, args?.entry_ref);
+  if (!resolved.ok) {
+    const error = buildErrorResponse({
+      context,
+      toolCallId,
+      code: resolved.code,
+      message: resolved.message,
+    });
+    if (resolved.candidates) error.candidates = resolved.candidates;
+    return error;
+  }
+  const entry = resolved.entry;
+  const offset = normalizeInteger(args?.offset, 0, { min: 0 });
+  const maxChars = Number.isFinite(args?.max_chars) ? args.max_chars : getMaxValueChars();
+  const maxBytes = Number.isFinite(args?.max_bytes) ? args.max_bytes : null;
+  const contentResult = applyTruncate(String(entry.content || '').slice(offset), maxChars, maxBytes);
+  const publicEntry = { ...entry, content: contentResult.value };
+  return buildOkResponse({
+    context,
+    toolCallId,
+    payload: {
+      entry: publicEntry,
+      index: resolved.index,
+      current_hash: await hashValue(entry),
+      content_hash: await hashValue(String(entry.content || '')),
+      offset,
+      truncated: contentResult.truncated,
+      returned_chars: contentResult.returnedChars,
+      returned_bytes: contentResult.returnedBytes,
+      total_chars: measureValue(String(entry.content || '')).totalChars,
+      total_bytes: measureValue(String(entry.content || '')).totalBytes,
+      changed: idsChanged,
+      new_card: idsChanged ? cloned : undefined,
+    },
+    warnings: contentResult.truncated
+      ? [{ code: 'W_TRUNCATED', message: '返回值已截断', severity: 'warn' }]
+      : [],
+  });
+}
+
+async function lorebookPatchEntryTool({ context, toolCallId, args, card }) {
+  const cloned = deepClone(card);
+  const book = ensureLorebook(cloned);
+  ensureLorebookEntryIds(book.entries);
+  const resolved = await resolveLorebookEntryRef(book.entries, args?.entry_ref);
+  if (!resolved.ok) {
+    const error = buildErrorResponse({
+      context,
+      toolCallId,
+      code: resolved.code,
+      message: resolved.message,
+    });
+    if (resolved.candidates) error.candidates = resolved.candidates;
+    return error;
+  }
+  const field = String(args?.field || 'content').trim() || 'content';
+  if (containsUnsafeToken(field) || field.includes('.') || field.includes('[')) {
+    return buildErrorResponse({
+      context,
+      toolCallId,
+      code: 'E_PATH_INVALID',
+      message: 'field 必须是条目内的普通字段名',
+    });
+  }
+  const entry = resolved.entry;
+  if (typeof entry[field] !== 'string') {
+    return buildErrorResponse({
+      context,
+      toolCallId,
+      code: 'E_TYPE_MISMATCH',
+      message: 'lorebook_patch_entry 仅支持字符串字段',
+    });
+  }
+  const currentHash = await hashValue(entry[field]);
+  if (args?.expected_hash && args.expected_hash !== currentHash) {
+    return buildErrorResponse({
+      context,
+      toolCallId,
+      code: 'E_CAS_MISMATCH',
+      message: 'expected_hash 与当前字段不匹配',
+      path: `${CHARACTER_BOOK_PATH}.entries[id=${entry.id}].${field}`,
+    });
+  }
+  const patchResult = applyTextPatches(entry[field], args?.patches);
+  if (!patchResult.ok) {
+    return attachPatchErrorDetails(buildErrorResponse({
+      context,
+      toolCallId,
+      code: patchResult.code,
+      message: patchResult.message,
+      path: `${CHARACTER_BOOK_PATH}.entries[id=${entry.id}].${field}`,
+    }), patchResult);
+  }
+  const beforeValue = entry[field];
+  entry[field] = patchResult.text;
+  const afterHash = await hashValue(entry[field]);
+  const diffSummary = await buildCardFieldDiff({
+    path: `${CHARACTER_BOOK_PATH}.entries[id=${entry.id}].${field}`,
+    beforeValue,
+    afterValue: entry[field],
+  });
+  const payload = {
+    changed: diffSummary.change_type !== 'noop',
+    current_hash: afterHash,
+    new_card: cloned,
+  };
+  const warnings = uniqueWarnings([
+    ...(patchResult.warnings || []),
+    ...collectContentWarnings(beforeValue, entry[field]),
+  ]);
+  const attach = maybeAttachReturnValue(payload, warnings, entry[field], args);
+  if (!attach.ok) {
+    return buildErrorResponse({
+      context,
+      toolCallId,
+      code: attach.code,
+      message: attach.message,
+      path: `${CHARACTER_BOOK_PATH}.entries[id=${entry.id}].${field}`,
+    });
+  }
+  return buildOkResponse({
+    context,
+    toolCallId,
+    payload,
+    warnings,
+    diffSummary,
+  });
+}
+
+async function lorebookUpsertEntryTool({ context, toolCallId, args, card }) {
+  const cloned = deepClone(card);
+  const book = ensureLorebook(cloned);
+  ensureLorebookEntryIds(book.entries);
+  if (!args?.entry || typeof args.entry !== 'object' || Array.isArray(args.entry)) {
+    return buildErrorResponse({
+      context,
+      toolCallId,
+      code: 'E_CONSTRAINT_VIOLATION',
+      message: 'entry 必须为对象',
+    });
+  }
+  const resolved = args?.entry_ref
+    ? await resolveLorebookEntryRef(book.entries, args.entry_ref, { allowMissing: true })
+    : { ok: true, index: -1, entry: null };
+  if (!resolved.ok) {
+    const error = buildErrorResponse({
+      context,
+      toolCallId,
+      code: resolved.code,
+      message: resolved.message,
+    });
+    if (resolved.candidates) error.candidates = resolved.candidates;
+    return error;
+  }
+  const beforeEntry = resolved.entry ? deepClone(resolved.entry) : null;
+  if (beforeEntry) {
+    const currentHash = await hashValue(beforeEntry);
+    if (args?.expected_hash && args.expected_hash !== currentHash) {
+      return buildErrorResponse({
+        context,
+        toolCallId,
+        code: 'E_CAS_MISMATCH',
+        message: 'expected_hash 与当前条目不匹配',
+      });
+    }
+  }
+  const nextEntry = {
+    ...(beforeEntry || {}),
+    ...deepClone(args.entry),
+  };
+  if (!String(nextEntry.id || '').trim()) {
+    nextEntry.id = generateLorebookEntryId(book.entries);
+  } else if (!LOREBOOK_ENTRY_ID_PATTERN.test(String(nextEntry.id))) {
+    nextEntry.id = String(nextEntry.id).trim();
+  }
+  if (!Array.isArray(nextEntry.keys)) nextEntry.keys = [];
+  if (!Array.isArray(nextEntry.secondary_keys)) nextEntry.secondary_keys = [];
+  const duplicateIndex = book.entries.findIndex((entry, index) => (
+    String(entry?.id || '') === String(nextEntry.id || '') && index !== resolved.index
+  ));
+  if (duplicateIndex !== -1) {
+    return buildErrorResponse({
+      context,
+      toolCallId,
+      code: 'E_CONSTRAINT_VIOLATION',
+      message: `世界书条目 id 已存在: ${nextEntry.id}`,
+    });
+  }
+  if (resolved.index >= 0) {
+    book.entries[resolved.index] = nextEntry;
+  } else {
+    book.entries.push(nextEntry);
+  }
+  const diffSummary = await buildCardFieldDiff({
+    path: `${CHARACTER_BOOK_PATH}.entries[id=${nextEntry.id}]`,
+    beforeValue: beforeEntry,
+    afterValue: nextEntry,
+    changeType: beforeEntry ? 'update' : 'add',
+  });
+  const payload = {
+    changed: diffSummary.change_type !== 'noop',
+    current_hash: await hashValue(nextEntry),
+    ids: [String(nextEntry.id || '')],
+    new_card: cloned,
+  };
+  maybeAttachReturnValue(payload, [], nextEntry, args);
+  return buildOkResponse({
+    context,
+    toolCallId,
+    payload,
+    warnings: beforeEntry ? collectContentWarnings(beforeEntry, nextEntry) : [],
+    diffSummary,
+  });
+}
+
+async function lorebookRemoveEntryTool({ context, toolCallId, args, card }) {
+  const cloned = deepClone(card);
+  const book = ensureLorebook(cloned);
+  ensureLorebookEntryIds(book.entries);
+  const resolved = await resolveLorebookEntryRef(book.entries, args?.entry_ref);
+  if (!resolved.ok) {
+    const error = buildErrorResponse({
+      context,
+      toolCallId,
+      code: resolved.code,
+      message: resolved.message,
+    });
+    if (resolved.candidates) error.candidates = resolved.candidates;
+    return error;
+  }
+  const beforeEntry = deepClone(resolved.entry);
+  const currentHash = await hashValue(beforeEntry);
+  if (args?.expected_hash && args.expected_hash !== currentHash) {
+    return buildErrorResponse({
+      context,
+      toolCallId,
+      code: 'E_CAS_MISMATCH',
+      message: 'expected_hash 与当前条目不匹配',
+    });
+  }
+  book.entries.splice(resolved.index, 1);
+  const diffSummary = await buildCardFieldDiff({
+    path: `${CHARACTER_BOOK_PATH}.entries[id=${beforeEntry.id}]`,
+    beforeValue: beforeEntry,
+    afterValue: null,
+    changeType: 'remove',
+  });
+  return buildOkResponse({
+    context,
+    toolCallId,
+    payload: {
+      changed: true,
+      ids: [String(beforeEntry.id || '')],
+      current_hash: await hashValue(book.entries),
+      new_card: cloned,
+    },
+    warnings: [],
+    diffSummary,
+  });
+}
+
+async function lorebookReorderEntriesTool({ context, toolCallId, args, card }) {
+  if (!Array.isArray(args?.entry_refs)) {
+    return buildErrorResponse({
+      context,
+      toolCallId,
+      code: 'E_CONSTRAINT_VIOLATION',
+      message: 'entry_refs 必须为数组',
+    });
+  }
+  const cloned = deepClone(card);
+  const book = ensureLorebook(cloned);
+  ensureLorebookEntryIds(book.entries);
+  const beforeEntries = deepClone(book.entries);
+  const currentHash = await hashValue(book.entries);
+  if (args?.expected_hash && args.expected_hash !== currentHash) {
+    return buildErrorResponse({
+      context,
+      toolCallId,
+      code: 'E_CAS_MISMATCH',
+      message: 'expected_hash 与当前条目顺序不匹配',
+    });
+  }
+  if (args.entry_refs.length !== book.entries.length) {
+    return buildErrorResponse({
+      context,
+      toolCallId,
+      code: 'E_CONSTRAINT_VIOLATION',
+      message: 'entry_refs 必须包含全部条目',
+    });
+  }
+  const nextEntries = [];
+  const used = new Set();
+  for (const entryRef of args.entry_refs) {
+    const resolved = await resolveLorebookEntryRef(book.entries, entryRef);
+    if (!resolved.ok) {
+      return buildErrorResponse({
+        context,
+        toolCallId,
+        code: resolved.code,
+        message: resolved.message,
+      });
+    }
+    const id = String(resolved.entry?.id || '');
+    if (used.has(id)) {
+      return buildErrorResponse({
+        context,
+        toolCallId,
+        code: 'E_CONSTRAINT_VIOLATION',
+        message: `entry_refs 存在重复条目: ${id}`,
+      });
+    }
+    used.add(id);
+    nextEntries.push(resolved.entry);
+  }
+  book.entries = nextEntries;
+  const diffSummary = await buildCardFieldDiff({
+    path: `${CHARACTER_BOOK_PATH}.entries`,
+    beforeValue: beforeEntries,
+    afterValue: nextEntries,
+    changeType: 'move',
+  });
+  return buildOkResponse({
+    context,
+    toolCallId,
+    payload: {
+      changed: diffSummary.change_type !== 'noop',
+      ids: nextEntries.map((entry) => String(entry?.id || '')),
+      current_hash: await hashValue(nextEntries),
+      new_card: cloned,
+    },
+    warnings: [],
+    diffSummary,
+  });
+}
+
+async function lorebookSetMetaTool({ context, toolCallId, args, card }) {
+  if (!args?.meta || typeof args.meta !== 'object' || Array.isArray(args.meta)) {
+    return buildErrorResponse({
+      context,
+      toolCallId,
+      code: 'E_CONSTRAINT_VIOLATION',
+      message: 'meta 必须为对象',
+    });
+  }
+  if (Object.prototype.hasOwnProperty.call(args.meta, 'entries')) {
+    return buildErrorResponse({
+      context,
+      toolCallId,
+      code: 'E_PERMISSION_DENIED',
+      message: 'entries 请使用 lorebook entry 工具修改',
+    });
+  }
+  const cloned = deepClone(card);
+  const book = ensureLorebook(cloned);
+  ensureLorebookEntryIds(book.entries);
+  const beforeMeta = { ...book };
+  delete beforeMeta.entries;
+  const currentHash = await hashValue(beforeMeta);
+  if (args?.expected_hash && args.expected_hash !== currentHash) {
+    return buildErrorResponse({
+      context,
+      toolCallId,
+      code: 'E_CAS_MISMATCH',
+      message: 'expected_hash 与当前世界书元信息不匹配',
+    });
+  }
+  Object.assign(book, deepClone(args.meta), { entries: book.entries });
+  const afterMeta = { ...book };
+  delete afterMeta.entries;
+  const diffSummary = await buildCardFieldDiff({
+    path: CHARACTER_BOOK_PATH,
+    beforeValue: beforeMeta,
+    afterValue: afterMeta,
+  });
+  const payload = {
+    changed: diffSummary.change_type !== 'noop',
+    current_hash: await hashValue(afterMeta),
+    new_card: cloned,
+  };
+  maybeAttachReturnValue(payload, [], afterMeta, args);
+  return buildOkResponse({
+    context,
+    toolCallId,
+    payload,
+    warnings: [],
+    diffSummary,
+  });
+}
+
 export async function executeToolCall({
   toolName,
   args,
@@ -3071,40 +4383,58 @@ export async function executeToolCall({
   let result;
 
   switch (normalizedToolName) {
-    case 'list_fields':
-      result = await listFields({ context, toolCallId, args: safeArgs, card });
+    case 'card_list_fields':
+      result = await cardListFieldsTool({ context, toolCallId, args: safeArgs, card });
       break;
-    case 'view_field':
-      result = await viewField({ context, toolCallId, args: safeArgs, card });
+    case 'card_read_field':
+      result = await cardReadFieldTool({ context, toolCallId, args: safeArgs, card });
       break;
-    case 'edit_field':
-      result = await editField({ context, toolCallId, args: safeArgs, card });
+    case 'card_set_field':
+      result = await cardSetFieldTool({ context, toolCallId, args: safeArgs, card });
       break;
-    case 'set_field':
-      result = await setField({ context, toolCallId, args: safeArgs, card });
+    case 'card_patch_text':
+      result = await cardPatchTextTool({ context, toolCallId, args: safeArgs, card });
       break;
-    case 'clear_field':
-      result = await clearField({ context, toolCallId, args: safeArgs, card });
+    case 'card_list_items':
+      result = await cardListItemsTool({ context, toolCallId, args: safeArgs, card });
       break;
-    case 'append_entry':
-      result = await appendEntry({ context, toolCallId, args: safeArgs, card });
+    case 'card_edit_items':
+      result = await cardEditItemsTool({ context, toolCallId, args: safeArgs, card });
       break;
-    case 'remove_entry':
-      result = await removeEntry({ context, toolCallId, args: safeArgs, card });
+    case 'lorebook_summary':
+      result = await lorebookSummaryTool({ context, toolCallId, args: safeArgs, card });
       break;
-    case 'move_entry':
-      result = await moveEntry({ context, toolCallId, args: safeArgs, card });
+    case 'lorebook_search_entries':
+      result = await lorebookSearchEntriesTool({ context, toolCallId, args: safeArgs, card });
       break;
-    case 'list_refs':
+    case 'lorebook_read_entry':
+      result = await lorebookReadEntryTool({ context, toolCallId, args: safeArgs, card });
+      break;
+    case 'lorebook_patch_entry':
+      result = await lorebookPatchEntryTool({ context, toolCallId, args: safeArgs, card });
+      break;
+    case 'lorebook_upsert_entry':
+      result = await lorebookUpsertEntryTool({ context, toolCallId, args: safeArgs, card });
+      break;
+    case 'lorebook_remove_entry':
+      result = await lorebookRemoveEntryTool({ context, toolCallId, args: safeArgs, card });
+      break;
+    case 'lorebook_reorder_entries':
+      result = await lorebookReorderEntriesTool({ context, toolCallId, args: safeArgs, card });
+      break;
+    case 'lorebook_set_meta':
+      result = await lorebookSetMetaTool({ context, toolCallId, args: safeArgs, card });
+      break;
+    case 'ref_list':
       result = await listRefsTool({ context, toolCallId, args: safeArgs });
       break;
-    case 'view_ref':
+    case 'ref_read':
       result = await viewRefTool({ context, toolCallId, args: safeArgs });
       break;
-    case 'search_ref':
+    case 'ref_search':
       result = await searchRefTool({ context, toolCallId, args: safeArgs });
       break;
-    case 'list_skills':
+    case 'skill_list':
       result = await listSkillsTool({
         context,
         toolCallId,
@@ -3112,7 +4442,7 @@ export async function executeToolCall({
         skillsRepository,
       });
       break;
-    case 'view_skill':
+    case 'skill_read':
       result = await viewSkillTool({
         context,
         toolCallId,
@@ -3120,7 +4450,7 @@ export async function executeToolCall({
         skillsRepository,
       });
       break;
-    case 'save_skill':
+    case 'skill_upsert':
       result = await saveSkillTool({
         context,
         toolCallId,
@@ -3128,7 +4458,7 @@ export async function executeToolCall({
         skillsRepository,
       });
       break;
-    case 'delete_skill':
+    case 'skill_delete':
       result = await deleteSkillTool({
         context,
         toolCallId,
@@ -3157,241 +4487,12 @@ export async function executeToolCall({
   };
 }
 
-export function getToolDefinitions({ includeSkillTools = false } = {}) {
-  const definitions = [
-    {
-      name: 'list_fields',
-      description: '列出字段结构与元信息，可选过滤与索引信息',
-      parameters: {
-        type: 'object',
-        properties: {
-          path: { type: 'string' },
-          filters: { type: 'object' },
-          include_indices: { type: 'boolean' },
-        },
-      },
-    },
-    {
-      name: 'view_field',
-      description: '读取字段值（支持截断）',
-      parameters: {
-        type: 'object',
-        properties: {
-          path: { type: 'string' },
-          max_chars: { type: 'number' },
-          max_bytes: { type: 'number' },
-        },
-        required: ['path'],
-      },
-    },
-    {
-      name: 'edit_field',
-      description: '精确替换字段值（old_value 或 old_hash）',
-      parameters: {
-        type: 'object',
-        properties: {
-          path: { type: 'string' },
-          new_value: {},
-          old_value: {},
-          old_hash: { type: 'string' },
-          return_value: { type: 'boolean' },
-          max_chars: { type: 'number' },
-          max_bytes: { type: 'number' },
-        },
-        required: ['path', 'new_value'],
-      },
-    },
-    {
-      name: 'set_field',
-      description: '覆盖写入字段值',
-      parameters: {
-        type: 'object',
-        properties: {
-          path: { type: 'string' },
-          value: {},
-          old_hash: { type: 'string' },
-          return_value: { type: 'boolean' },
-          max_chars: { type: 'number' },
-          max_bytes: { type: 'number' },
-        },
-        required: ['path', 'value'],
-      },
-    },
-    {
-      name: 'clear_field',
-      description: '清空字段值（null 或 default）',
-      parameters: {
-        type: 'object',
-        properties: {
-          path: { type: 'string' },
-          mode: { type: 'string' },
-          old_hash: { type: 'string' },
-          return_value: { type: 'boolean' },
-          max_chars: { type: 'number' },
-          max_bytes: { type: 'number' },
-        },
-        required: ['path'],
-      },
-    },
-    {
-      name: 'append_entry',
-      description: '向数组追加元素',
-      parameters: {
-        type: 'object',
-        properties: {
-          path: { type: 'string' },
-          value: {},
-          old_hash: { type: 'string' },
-          return_value: { type: 'boolean' },
-          max_chars: { type: 'number' },
-          max_bytes: { type: 'number' },
-        },
-        required: ['path', 'value'],
-      },
-    },
-    {
-      name: 'remove_entry',
-      description: '删除数组元素',
-      parameters: {
-        type: 'object',
-        properties: {
-          path: { type: 'string' },
-          old_hash: { type: 'string' },
-          return_value: { type: 'boolean' },
-          max_chars: { type: 'number' },
-          max_bytes: { type: 'number' },
-        },
-        required: ['path'],
-      },
-    },
-    {
-      name: 'move_entry',
-      description: '移动数组元素',
-      parameters: {
-        type: 'object',
-        properties: {
-          from_path: { type: 'string' },
-          to_index: { type: 'number' },
-          old_hash: { type: 'string' },
-          return_value: { type: 'boolean' },
-          max_chars: { type: 'number' },
-          max_bytes: { type: 'number' },
-        },
-        required: ['from_path', 'to_index'],
-      },
-    },
-    {
-      name: 'list_refs',
-      description: '列出参考附件元信息',
-      parameters: {
-        type: 'object',
-        properties: {
-          filters: { type: 'object' },
-        },
-      },
-    },
-    {
-      name: 'view_ref',
-      description: '读取参考附件文本片段',
-      parameters: {
-        type: 'object',
-        properties: {
-          ref_id: { type: 'string' },
-          offset: { type: 'number' },
-          max_chars: { type: 'number' },
-          max_bytes: { type: 'number' },
-        },
-        required: ['ref_id'],
-      },
-    },
-    {
-      name: 'search_ref',
-      description: '检索参考附件文本内容',
-      parameters: {
-        type: 'object',
-        properties: {
-          ref_id: { type: 'string' },
-          query: { type: 'string' },
-          max_hits: { type: 'number' },
-          snippet_chars: { type: 'number' },
-          mode: { type: 'string' },
-          flags: { type: 'string' },
-        },
-        required: ['ref_id', 'query'],
-      },
-    },
-  ];
-
-  if (includeSkillTools) {
-    definitions.push(
-      {
-        name: 'list_skills',
-        description: '列出本地技能目录与基础元信息',
-        parameters: {
-          type: 'object',
-          properties: {
-            filters: { type: 'object' },
-          },
-        },
-      },
-      {
-        name: 'view_skill',
-        description: '读取单个技能内容（描述、正文与 references）',
-        parameters: {
-          type: 'object',
-          properties: {
-            skill_id: { type: 'string' },
-          },
-          required: ['skill_id'],
-        },
-      },
-      {
-        name: 'save_skill',
-        description: '创建/更新技能；支持通过 previous_skill_id 重命名；references 仅接受 [{name, content}]',
-        parameters: {
-          type: 'object',
-          properties: {
-            skill_id: { type: 'string' },
-            previous_skill_id: { type: 'string' },
-            description: { type: 'string' },
-            content: { type: 'string' },
-            references: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  name: { type: 'string' },
-                  content: { type: 'string' },
-                },
-                required: ['name', 'content'],
-              },
-            },
-          },
-          required: ['skill_id'],
-        },
-      },
-      {
-        name: 'delete_skill',
-        description: '删除技能（从目录移除并可选删除技能文件）',
-        parameters: {
-          type: 'object',
-          properties: {
-            skill_id: { type: 'string' },
-            delete_files: { type: 'boolean' },
-          },
-          required: ['skill_id'],
-        },
-      },
-    );
-  }
-
-  return definitions;
-}
-
 export const TOOL_LIMITS = {
   MAX_VALUE_CHARS,
   MAX_PATCH_CHARS,
 };
+
+export { getToolDefinitions };
 
 export default {
   executeToolCall,

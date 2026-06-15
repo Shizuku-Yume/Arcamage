@@ -1,8 +1,99 @@
 
 import Alpine from 'alpinejs';
 import { ACCENT_PRESETS, isValidHex, normalizeHex } from '../utils/accent_colors.js';
-import { getSupplierModels, testSupplierConnection } from '../api.js';
+import { getSupplierModels } from '../api.js';
+import { requestAssistantTurn } from '../agent/llm/client.js';
+import {
+  DEFAULT_CONTEXT_WINDOW,
+  DEFAULT_MAX_TOKENS,
+  DEFAULT_SUPPLIER_API,
+  DEFAULT_SUPPLIER_PROVIDER,
+  DEFAULT_SUPPLIER_TRANSPORT,
+  normalizeSupplierConfig,
+  normalizeSupplierModels,
+} from '../agent/llm/model.js';
 import { confirm } from './modal.js';
+
+const SUPPLIER_PROVIDER_BY_API = {
+  'openai-completions': 'openai-compatible',
+  'openai-responses': 'openai',
+  'anthropic-messages': 'anthropic',
+  'google-generative-ai': 'google',
+  'mistral-conversations': 'mistral',
+};
+
+const SUPPLIER_API_OPTIONS = [
+  { value: 'openai-completions', label: 'openai-completions' },
+  { value: 'openai-responses', label: 'openai-responses' },
+  { value: 'anthropic-messages', label: 'anthropic-messages' },
+  { value: 'google-generative-ai', label: 'google-generative-ai' },
+  { value: 'mistral-conversations', label: 'mistral-conversations' },
+];
+
+const SUPPLIER_TRANSPORT_OPTIONS = [
+  { value: 'direct', label: '浏览器直连' },
+  { value: 'arcamage-proxy', label: 'Arcamage 代理' },
+];
+
+const MODEL_VENDOR_PATTERNS = [
+  { key: 'claude', label: 'Claude' },
+  { key: 'gpt', label: 'OpenAI / GPT' },
+  { key: 'openai', label: 'OpenAI / GPT' },
+  { key: 'gemini', label: 'Google / Gemini' },
+  { key: 'grok', label: 'xAI / Grok' },
+  { key: 'qwen', label: 'Qwen' },
+  { key: 'deepseek', label: 'DeepSeek' },
+  { key: 'kimi', label: 'Kimi' },
+  { key: 'glm', label: 'GLM' },
+  { key: 'mistral', label: 'Mistral' },
+  { key: 'minimax', label: 'MiniMax' },
+  { key: 'llama', label: 'Llama' },
+];
+
+function formatJsonObject(value) {
+  const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  return JSON.stringify(source, null, 2);
+}
+
+function resolveSupplierProviderForApi(api, fallback = DEFAULT_SUPPLIER_PROVIDER) {
+  return SUPPLIER_PROVIDER_BY_API[api] || fallback || DEFAULT_SUPPLIER_PROVIDER;
+}
+
+function getModelVendorLabel(modelId) {
+  const normalized = String(modelId || '').toLowerCase();
+  const match = MODEL_VENDOR_PATTERNS.find((item) => normalized.includes(item.key));
+  return match?.label || '其他模型';
+}
+
+function getModelGenerationLabel(modelId) {
+  const text = String(modelId || '');
+  const version = text.match(/(?:^|[-_])(?:v)?(\d+(?:\.\d+)?)/i)?.[1];
+  if (!version) return '其他系列';
+  return `${version.split('.')[0]} 系列`;
+}
+
+export function groupSupplierModels(models) {
+  const groups = new Map();
+
+  normalizeSupplierModels(models).forEach((model) => {
+    const vendor = getModelVendorLabel(model.id);
+    const generation = getModelGenerationLabel(model.id);
+    const label = `${vendor} · ${generation}`;
+    if (!groups.has(label)) {
+      groups.set(label, []);
+    }
+    groups.get(label).push(model);
+  });
+
+  return Array.from(groups, ([label, items]) => ({ label, models: items }));
+}
+
+export function flattenGroupedSupplierModels(models) {
+  return groupSupplierModels(models).flatMap((group) => [
+    { type: 'group', id: `group:${group.label}`, label: group.label },
+    ...group.models.map((model) => ({ type: 'model', id: model.id, label: model.id })),
+  ]);
+}
 
 export function settingsModal() {
   return {
@@ -31,11 +122,64 @@ export function settingsModal() {
     showApiKey: false,
     selectedModel: '',
     proxyEnabled: false,
+    supplierProvider: DEFAULT_SUPPLIER_PROVIDER,
+    supplierApi: DEFAULT_SUPPLIER_API,
+    supplierTransport: DEFAULT_SUPPLIER_TRANSPORT,
+    reasoningEnabled: false,
+    showSupplierAdvanced: false,
+    compatJson: '{}',
+    compatJsonError: '',
+    contextWindowInput: String(DEFAULT_CONTEXT_WINDOW),
+    maxTokensInput: String(DEFAULT_MAX_TOKENS),
     temperature: 1.0,
     temperatureInput: '1.0',
     availableModels: [],
+    modelFilter: '',
     connectionStatus: null,
+    modelsStatus: null,
     connectionMessage: '',
+    supplierApiOptions: SUPPLIER_API_OPTIONS,
+    supplierTransportOptions: SUPPLIER_TRANSPORT_OPTIONS,
+    supplierApiOpen: false,
+
+    get currentSupplierApiLabel() {
+      return this.supplierApiOptions.find((option) => option.value === this.supplierApi)?.label || this.supplierApi;
+    },
+
+    get currentSupplierTransportLabel() {
+      return this.supplierTransportOptions.find((option) => option.value === this.supplierTransport)?.label || this.supplierTransport;
+    },
+
+    get groupedAvailableModels() {
+      return groupSupplierModels(this.availableModels);
+    },
+
+    get modelSelectOptions() {
+      return flattenGroupedSupplierModels(this.availableModels);
+    },
+
+    get filteredModelGroups() {
+      const keyword = String(this.modelFilter || '').trim().toLowerCase();
+      return this.groupedAvailableModels
+        .map((group) => ({
+          ...group,
+          models: keyword
+            ? group.models.filter((model) => model.id.toLowerCase().includes(keyword))
+            : group.models,
+        }))
+        .filter((group) => group.models.length > 0);
+    },
+
+    syncSupplierDraftSoon() {
+      this.$nextTick?.(() => {
+        this.syncCurrentProviderToList();
+      });
+    },
+
+    selectModel(modelId) {
+      this.selectedModel = modelId;
+      this.syncCurrentProviderToList();
+    },
 
     providers: [],
     currentProviderId: null,
@@ -78,15 +222,13 @@ export function settingsModal() {
       this.selectedAccent = settings.accentColor || 'teal';
       this.customHex = settings.customAccentHex || '';
 
-      this.providers = (suppliers.providers || []).map((provider) => ({ ...provider }));
+      this.providers = (suppliers.providers || []).map((provider, index) => normalizeSupplierConfig({
+        id: provider?.id || `provider_${index + 1}`,
+        name: provider?.name || `供应商 ${index + 1}`,
+        ...provider,
+      }));
       this.currentProviderId = suppliers.currentProviderId;
-      this.apiUrl = suppliers.baseUrl || '';
-      this.apiKey = suppliers.apiKey || '';
-      this.selectedModel = suppliers.model || '';
-      this.proxyEnabled = suppliers.useProxy ?? false;
-      this.temperature = this.normalizeTemperature(suppliers.temperature);
-      this.temperatureInput = this.temperature.toFixed(1);
-      this.availableModels = [];
+      this.applySupplierToForm(suppliers.getCurrentProvider?.() || suppliers.getConfig?.() || suppliers);
       this.connectionStatus = null;
       this.connectionMessage = '';
       this.refreshLocalStorageUsage();
@@ -122,26 +264,20 @@ export function settingsModal() {
     },
 
     switchProvider(providerId) {
-      this.syncCurrentProviderToList();
+      if (!this.syncCurrentProviderToList()) return;
 
       const provider = this.providers.find((item) => item.id === providerId);
       if (!provider) return;
 
       this.currentProviderId = providerId;
-      this.apiUrl = provider.baseUrl || '';
-      this.apiKey = provider.apiKey || '';
-      this.selectedModel = provider.model || '';
-      this.proxyEnabled = provider.useProxy ?? false;
-      this.temperature = this.normalizeTemperature(provider.temperature);
-      this.temperatureInput = this.temperature.toFixed(1);
-      this.availableModels = [];
+      this.applySupplierToForm(provider);
       this.connectionStatus = null;
       this.connectionMessage = '';
     },
 
     addProvider() {
       const id = `provider_${Date.now()}`;
-      const newProvider = {
+      const newProvider = normalizeSupplierConfig({
         id,
         name: `供应商 ${this.providers.length + 1}`,
         baseUrl: '',
@@ -149,7 +285,7 @@ export function settingsModal() {
         model: '',
         useProxy: false,
         temperature: 1.0,
-      };
+      });
 
       this.providers.push(newProvider);
       this.switchProvider(id);
@@ -193,34 +329,62 @@ export function settingsModal() {
 
     syncCurrentProviderToList() {
       const provider = this.providers.find((item) => item.id === this.currentProviderId);
-      if (!provider) return;
+      if (!provider) return true;
 
       this.commitTemperature();
+      const advanced = this.commitSupplierAdvancedInputs();
+      if (!advanced) return false;
 
       provider.baseUrl = this.apiUrl;
       provider.apiKey = this.apiKey;
       provider.model = this.selectedModel;
-      provider.useProxy = this.proxyEnabled;
+      provider.provider = resolveSupplierProviderForApi(
+        this.supplierApi || DEFAULT_SUPPLIER_API,
+        this.supplierProvider,
+      );
+      provider.api = this.supplierApi || DEFAULT_SUPPLIER_API;
+      provider.transport = this.supplierTransport || DEFAULT_SUPPLIER_TRANSPORT;
+      provider.useProxy = provider.transport === 'arcamage-proxy';
+      this.proxyEnabled = provider.useProxy;
+      provider.compat = advanced.compat;
+      provider.headers = provider.headers && typeof provider.headers === 'object' ? provider.headers : {};
+      provider.reasoning = this.reasoningEnabled === true;
+      provider.contextWindow = advanced.contextWindow;
+      provider.maxTokens = advanced.maxTokens;
+      provider.availableModels = normalizeSupplierModels(this.availableModels);
       provider.temperature = this.temperature;
+      Object.assign(provider, normalizeSupplierConfig(provider));
+      return true;
     },
     
+    persistSuppliersToStore() {
+      const suppliers = Alpine.store('suppliers');
+      const currentProvider = normalizeSupplierConfig(
+        this.providers.find((provider) => provider.id === this.currentProviderId) || {},
+      );
+
+      suppliers.providers = this.providers.map((provider) => normalizeSupplierConfig({ ...provider }));
+      suppliers.currentProviderId = this.currentProviderId;
+      suppliers.applyProvider(currentProvider);
+      suppliers.syncCurrentProvider();
+      localStorage.setItem(suppliers.storageKey, JSON.stringify({
+        providers: suppliers.providers,
+        currentProviderId: suppliers.currentProviderId,
+      }));
+    },
+
     async saveSettings() {
       this.commitAutoSaveInterval();
       this.commitAgentAdvancedInputs();
-      this.syncCurrentProviderToList();
+      if (!this.syncCurrentProviderToList()) {
+        Alpine.store('toast').error('供应商高级配置格式有误');
+        return;
+      }
 
-      const suppliers = Alpine.store('suppliers');
       const settings = Alpine.store('settings');
       const toast = Alpine.store('toast');
 
-      suppliers.providers = this.providers.map((provider) => ({ ...provider }));
-      suppliers.currentProviderId = this.currentProviderId;
-      suppliers.baseUrl = this.apiUrl;
-      suppliers.apiKey = this.apiKey;
-      suppliers.model = this.selectedModel;
-      suppliers.useProxy = this.proxyEnabled;
-      suppliers.temperature = this.temperature;
-      suppliers.save();
+      this.persistSuppliersToStore();
 
       settings.autoSaveEnabled = this.autoSaveEnabled;
       settings.autoSaveInterval = this.autoSaveInterval;
@@ -242,51 +406,111 @@ export function settingsModal() {
       Alpine.store('modalStack').pop();
     },
 
+    buildSupplierRequestConfig(overrides = {}) {
+      this.commitTemperature();
+      const advanced = this.commitSupplierAdvancedInputs();
+      if (!advanced) {
+        Alpine.store('toast').error('供应商高级配置格式有误');
+        return null;
+      }
+
+      const currentProvider = this.providers.find((item) => item.id === this.currentProviderId) || {};
+      return normalizeSupplierConfig({
+        ...currentProvider,
+        baseUrl: this.apiUrl,
+        apiKey: this.apiKey,
+        model: this.selectedModel,
+        provider: resolveSupplierProviderForApi(
+          this.supplierApi || DEFAULT_SUPPLIER_API,
+          this.supplierProvider,
+        ),
+        api: this.supplierApi || DEFAULT_SUPPLIER_API,
+        transport: this.supplierTransport || DEFAULT_SUPPLIER_TRANSPORT,
+        useProxy: this.supplierTransport === 'arcamage-proxy',
+        headers: currentProvider.headers || {},
+        reasoning: this.reasoningEnabled === true,
+        compat: advanced.compat,
+        contextWindow: advanced.contextWindow,
+        maxTokens: advanced.maxTokens,
+        temperature: this.temperature,
+        availableModels: this.availableModels,
+        ...overrides,
+      });
+    },
+
+    persistSupplierDraft() {
+      if (!this.syncCurrentProviderToList()) return false;
+      this.persistSuppliersToStore();
+      return true;
+    },
+
     async testConnection() {
       if (!this.apiUrl || !this.apiKey) {
         Alpine.store('toast').error('请填写 API 地址和 Key');
         return;
       }
+      if (!this.selectedModel) {
+        Alpine.store('toast').error('请选择模型');
+        return;
+      }
+
+      const supplier = this.buildSupplierRequestConfig();
+      if (!supplier) return;
 
       this.connectionStatus = 'testing';
-      this.connectionMessage = '正在连接...';
+      this.connectionMessage = '正在发送测试消息...';
 
       try {
-        const result = await testSupplierConnection({
-          baseUrl: this.apiUrl,
-          apiKey: this.apiKey,
-          useProxy: this.proxyEnabled,
-          model: this.selectedModel,
+        const turn = await requestAssistantTurn({
+          supplier,
+          messages: [
+            {
+              role: 'user',
+              content: '请只回复“连接成功”。这是 Arcamage 的供应商连接测试。',
+            },
+          ],
+          tools: undefined,
         });
 
-        if (result.success) {
-          this.connectionStatus = 'success';
-          this.connectionMessage = result.message || '连接成功';
-          this.availableModels = result.models || [];
-
-          if (!this.selectedModel && this.availableModels.length > 0) {
-            this.selectedModel = this.availableModels[0].id;
-          }
-        } else {
-          this.connectionStatus = 'error';
-          this.connectionMessage = result.message || '连接失败';
-        }
+        this.connectionStatus = 'success';
+        const text = String(turn?.text || '').trim();
+        this.connectionMessage = text ? `连接成功：${text.slice(0, 40)}` : '连接成功';
       } catch (error) {
         this.connectionStatus = 'error';
-        this.connectionMessage = error?.getUserMessage ? error.getUserMessage() : '连接失败';
+        this.connectionMessage = error?.getUserMessage ? error.getUserMessage() : (error?.message || '连接失败');
       }
     },
 
     async loadModels() {
-      if (!this.apiUrl || !this.apiKey) return;
+      if (!this.apiUrl || !this.apiKey) {
+        Alpine.store('toast').error('请填写 API 地址和 Key');
+        return;
+      }
+
+      const supplier = this.buildSupplierRequestConfig();
+      if (!supplier) return;
+
+      this.modelsStatus = 'loading';
+      this.connectionMessage = '正在获取模型列表...';
 
       try {
-        this.availableModels = await getSupplierModels({
-          baseUrl: this.apiUrl,
-          apiKey: this.apiKey,
-          useProxy: this.proxyEnabled,
-        });
+        const models = normalizeSupplierModels(await getSupplierModels(supplier));
+        this.availableModels = models;
+
+        if (!this.selectedModel && models.length > 0) {
+          this.selectedModel = models[0].id;
+        }
+        this.syncCurrentProviderToList();
+
+        this.modelsStatus = 'success';
+        this.connectionStatus = 'success';
+        this.connectionMessage = models.length > 0
+          ? `已获取 ${models.length} 个模型`
+          : '模型列表为空';
+        this.persistSupplierDraft();
       } catch (error) {
+        this.modelsStatus = 'error';
+        this.connectionStatus = 'error';
         this.connectionMessage = error?.getUserMessage ? error.getUserMessage() : '获取模型失败';
       }
     },
@@ -346,6 +570,91 @@ export function settingsModal() {
       const normalized = this.normalizeTemperature(this.temperatureInput);
       this.temperature = normalized;
       this.temperatureInput = normalized.toFixed(1);
+    },
+
+    applySupplierToForm(provider) {
+      const normalized = normalizeSupplierConfig(provider || {});
+      this.apiUrl = normalized.baseUrl || '';
+      this.apiKey = normalized.apiKey || '';
+      this.selectedModel = normalized.model || '';
+      this.supplierProvider = normalized.provider;
+      this.supplierApi = normalized.api;
+      this.supplierTransport = normalized.transport;
+      this.proxyEnabled = normalized.transport === 'arcamage-proxy';
+      this.reasoningEnabled = normalized.reasoning === true;
+      this.compatJson = formatJsonObject(normalized.compat);
+      this.compatJsonError = '';
+      this.contextWindowInput = String(normalized.contextWindow);
+      this.maxTokensInput = String(normalized.maxTokens);
+      this.temperature = this.normalizeTemperature(normalized.temperature);
+      this.temperatureInput = this.temperature.toFixed(1);
+      this.availableModels = normalizeSupplierModels(normalized.availableModels);
+    },
+
+    changeSupplierApi(value = this.supplierApi) {
+      this.supplierApi = value || DEFAULT_SUPPLIER_API;
+      this.supplierProvider = resolveSupplierProviderForApi(this.supplierApi, this.supplierProvider);
+      this.syncCurrentProviderToList();
+    },
+
+    selectSupplierApi(value) {
+      this.changeSupplierApi(value);
+      this.supplierApiOpen = false;
+    },
+
+    changeSupplierTransport(value = this.supplierTransport) {
+      this.supplierTransport = value || DEFAULT_SUPPLIER_TRANSPORT;
+      this.proxyEnabled = this.supplierTransport === 'arcamage-proxy';
+      this.syncCurrentProviderToList();
+    },
+
+    selectSupplierTransport(value) {
+      this.changeSupplierTransport(value);
+    },
+
+    parseCompatJson() {
+      const text = String(this.compatJson || '').trim();
+      if (!text) {
+        this.compatJsonError = '';
+        this.compatJson = '{}';
+        return {};
+      }
+
+      try {
+        const parsed = JSON.parse(text);
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+          this.compatJsonError = 'Compat 必须是 JSON 对象';
+          return null;
+        }
+        this.compatJsonError = '';
+        this.compatJson = formatJsonObject(parsed);
+        return parsed;
+      } catch (error) {
+        this.compatJsonError = 'Compat JSON 格式无效';
+        return null;
+      }
+    },
+
+    normalizePositiveIntegerInput(value, fallback) {
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric) || numeric <= 0) return fallback;
+      return Math.floor(numeric);
+    },
+
+    commitSupplierAdvancedInputs() {
+      const compat = this.parseCompatJson();
+      if (compat === null) return null;
+
+      const contextWindow = this.normalizePositiveIntegerInput(
+        this.contextWindowInput,
+        DEFAULT_CONTEXT_WINDOW,
+      );
+      const maxTokens = this.normalizePositiveIntegerInput(this.maxTokensInput, DEFAULT_MAX_TOKENS);
+
+      this.contextWindowInput = String(contextWindow);
+      this.maxTokensInput = String(maxTokens);
+
+      return { compat, contextWindow, maxTokens };
     },
 
     refreshLocalStorageUsage() {

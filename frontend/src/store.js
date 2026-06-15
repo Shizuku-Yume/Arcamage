@@ -9,6 +9,7 @@ import { getAccentShades, applyAccentToDOM } from './utils/accent_colors.js';
 import { hashBytes } from './agent/crypto_utils.js';
 import { loadSkillPreferenceState } from './agent/skill_manager.js';
 import { createEmptySkillContextMeta } from './agent/skill_context.js';
+import { normalizeSupplierConfig, normalizeSupplierModels } from './agent/llm/model.js';
 
 // ============================================================
 // 工具函数
@@ -62,6 +63,29 @@ function createAgentSkillsState() {
     loadedContextMeta: createEmptySkillContextMeta(),
     lastError: null,
   };
+}
+
+function resetCardPreviewSessionForCardSwitch() {
+  const preview = Alpine.store('cardPreview');
+  if (!preview) return;
+
+  if (preview.abortController) {
+    try {
+      preview.abortController.abort();
+    } catch {
+      // ignore abort failures
+    }
+  }
+
+  preview.messages = [];
+  preview.input = '';
+  preview.streamingText = '';
+  preview.streamingThinking = '';
+  preview.status = 'idle';
+  preview.error = null;
+  preview.abortController = null;
+  preview.selectedGreetingId = 'first';
+  preview.lastUserInput = '';
 }
 
 function resetAgentSessionForCardSwitch() {
@@ -316,6 +340,7 @@ export function initStores() {
     // 初始化新卡片
     initNew() {
       resetAgentSessionForCardSwitch();
+      resetCardPreviewSessionForCardSwitch();
       this.data = createEmptyCard();
       this.originalData = deepClone(this.data);
       this.sourceFile = null;
@@ -331,6 +356,7 @@ export function initStores() {
     // 加载解析后的卡片
     loadCard(parseResult, file = null, imageDataUrl = null) {
       resetAgentSessionForCardSwitch();
+      resetCardPreviewSessionForCardSwitch();
       this.data = parseResult.card;
       this.originalData = deepClone(parseResult.card);
       this.sourceFile = file;
@@ -408,6 +434,7 @@ export function initStores() {
     // 清空卡片
     clear() {
       resetAgentSessionForCardSwitch();
+      resetCardPreviewSessionForCardSwitch();
       this.data = null;
       this.originalData = null;
       this.sourceFile = null;
@@ -570,6 +597,15 @@ export function initStores() {
     model: '',
     useProxy: false,
     temperature: DEFAULT_MODEL_TEMPERATURE,
+    provider: 'openai-compatible',
+    api: 'openai-completions',
+    transport: 'direct',
+    compat: {},
+    headers: {},
+    reasoning: false,
+    contextWindow: 128000,
+    maxTokens: 4096,
+    availableModels: [],
 
     getConfig() {
       return {
@@ -578,7 +614,34 @@ export function initStores() {
         model: this.model,
         useProxy: this.useProxy,
         temperature: this.temperature,
+        provider: this.provider,
+        api: this.api,
+        transport: this.transport,
+        compat: { ...this.compat },
+        headers: { ...this.headers },
+        reasoning: this.reasoning,
+        contextWindow: this.contextWindow,
+        maxTokens: this.maxTokens,
+        availableModels: normalizeSupplierModels(this.availableModels),
       };
+    },
+
+    applyProvider(provider) {
+      const normalized = normalizeSupplierConfig(provider || {});
+      this.baseUrl = normalized.baseUrl;
+      this.apiKey = normalized.apiKey;
+      this.model = normalized.model;
+      this.useProxy = normalized.useProxy;
+      this.temperature = normalizeSupplierTemperature(normalized.temperature);
+      this.provider = normalized.provider;
+      this.api = normalized.api;
+      this.transport = normalized.transport;
+      this.compat = { ...normalized.compat };
+      this.headers = { ...normalized.headers };
+      this.reasoning = normalized.reasoning;
+      this.contextWindow = normalized.contextWindow;
+      this.maxTokens = normalized.maxTokens;
+      this.availableModels = normalizeSupplierModels(normalized.availableModels);
     },
 
     getCurrentProvider() {
@@ -590,7 +653,7 @@ export function initStores() {
       if (this.providers.length > 0) return;
 
       const id = 'provider_default';
-      const provider = {
+      const provider = normalizeSupplierConfig({
         id,
         name: '供应商 1',
         baseUrl: '',
@@ -598,15 +661,11 @@ export function initStores() {
         model: '',
         useProxy: false,
         temperature: DEFAULT_MODEL_TEMPERATURE,
-      };
+      });
 
       this.providers = [provider];
       this.currentProviderId = id;
-      this.baseUrl = '';
-      this.apiKey = '';
-      this.model = '';
-      this.useProxy = false;
-      this.temperature = DEFAULT_MODEL_TEMPERATURE;
+      this.applyProvider(provider);
     },
 
     switchProvider(providerId) {
@@ -616,16 +675,12 @@ export function initStores() {
       if (!provider) return;
 
       this.currentProviderId = providerId;
-      this.baseUrl = provider.baseUrl || '';
-      this.apiKey = provider.apiKey || '';
-      this.model = provider.model || '';
-      this.useProxy = provider.useProxy ?? false;
-      this.temperature = normalizeSupplierTemperature(provider.temperature);
+      this.applyProvider(provider);
     },
 
     addProvider(name) {
       const id = `provider_${Date.now()}`;
-      const provider = {
+      const provider = normalizeSupplierConfig({
         id,
         name: name || `供应商 ${this.providers.length + 1}`,
         baseUrl: '',
@@ -633,15 +688,11 @@ export function initStores() {
         model: '',
         useProxy: false,
         temperature: DEFAULT_MODEL_TEMPERATURE,
-      };
+      });
 
       this.providers.push(provider);
       this.currentProviderId = id;
-      this.baseUrl = provider.baseUrl;
-      this.apiKey = provider.apiKey;
-      this.model = provider.model;
-      this.useProxy = provider.useProxy;
-      this.temperature = provider.temperature;
+      this.applyProvider(provider);
 
       this.save();
 
@@ -659,18 +710,18 @@ export function initStores() {
         if (this.providers.length > 0) {
           const nextProvider = this.providers[0];
           this.currentProviderId = nextProvider.id;
-          this.baseUrl = nextProvider.baseUrl || '';
-          this.apiKey = nextProvider.apiKey || '';
-          this.model = nextProvider.model || '';
-          this.useProxy = nextProvider.useProxy ?? false;
-          this.temperature = normalizeSupplierTemperature(nextProvider.temperature);
+          this.applyProvider(nextProvider);
         } else {
           this.currentProviderId = null;
-          this.baseUrl = '';
-          this.apiKey = '';
-          this.model = '';
-          this.useProxy = false;
-          this.temperature = DEFAULT_MODEL_TEMPERATURE;
+          this.applyProvider({
+            id: '',
+            name: '',
+            baseUrl: '',
+            apiKey: '',
+            model: '',
+            useProxy: false,
+            temperature: DEFAULT_MODEL_TEMPERATURE,
+          });
         }
       }
 
@@ -687,11 +738,31 @@ export function initStores() {
     syncCurrentProvider() {
       const provider = this.getCurrentProvider();
       if (!provider) return;
-      provider.baseUrl = this.baseUrl;
-      provider.apiKey = this.apiKey;
-      provider.model = this.model;
-      provider.useProxy = this.useProxy;
-      provider.temperature = normalizeSupplierTemperature(this.temperature);
+      const previous = normalizeSupplierConfig(provider);
+      const transportChanged = this.transport !== previous.transport;
+      const useProxyChanged = this.useProxy !== previous.useProxy;
+      const nextTransport = transportChanged
+        ? (this.transport || 'direct')
+        : (useProxyChanged ? (this.useProxy ? 'arcamage-proxy' : 'direct') : (this.transport || 'direct'));
+      Object.assign(provider, normalizeSupplierConfig({
+        ...provider,
+        baseUrl: this.baseUrl,
+        apiKey: this.apiKey,
+        model: this.model,
+        useProxy: nextTransport === 'arcamage-proxy',
+        temperature: this.temperature,
+        provider: this.provider,
+        api: this.api,
+        transport: nextTransport,
+        compat: this.compat,
+        headers: this.headers,
+        reasoning: this.reasoning,
+        contextWindow: this.contextWindow,
+        maxTokens: this.maxTokens,
+        availableModels: this.availableModels,
+      }));
+      this.transport = provider.transport;
+      this.useProxy = provider.useProxy;
     },
 
     load() {
@@ -700,9 +771,10 @@ export function initStores() {
         if (saved) {
           const parsed = JSON.parse(saved);
           if (Array.isArray(parsed.providers)) {
-            this.providers = parsed.providers.map((provider) => ({
+            this.providers = parsed.providers.map((provider, index) => normalizeSupplierConfig({
+              id: provider?.id || `provider_${index + 1}`,
+              name: provider?.name || `供应商 ${index + 1}`,
               ...provider,
-              temperature: normalizeSupplierTemperature(provider?.temperature),
             }));
             this.currentProviderId = parsed.currentProviderId || null;
           }
@@ -715,11 +787,7 @@ export function initStores() {
 
         const current = this.getCurrentProvider() || this.providers[0];
         this.currentProviderId = current?.id ?? null;
-        this.baseUrl = current?.baseUrl || '';
-        this.apiKey = current?.apiKey || '';
-        this.model = current?.model || '';
-        this.useProxy = current?.useProxy ?? false;
-        this.temperature = normalizeSupplierTemperature(current?.temperature);
+        this.applyProvider(current);
       } catch (error) {
         console.warn('Failed to load supplier settings:', error);
         this.ensureDefaultProvider();
@@ -728,6 +796,11 @@ export function initStores() {
 
     save() {
       try {
+        this.providers = this.providers.map((provider, index) => normalizeSupplierConfig({
+          id: provider?.id || `provider_${index + 1}`,
+          name: provider?.name || `供应商 ${index + 1}`,
+          ...provider,
+        }));
         this.syncCurrentProvider();
         localStorage.setItem(this.storageKey, JSON.stringify({
           providers: this.providers,
@@ -933,6 +1006,20 @@ export function initStores() {
 
     lastApplied: null,
     appliedEntries: [],
+  });
+
+  // ----- Card Preview Store (tavern-like card chat preview) -----
+  Alpine.store('cardPreview', {
+    messages: [],
+    input: '',
+    streamingText: '',
+    streamingThinking: '',
+    status: 'idle', // idle | streaming | error
+    error: null,
+    abortController: null,
+    selectedGreetingId: 'first',
+    userName: 'user',
+    lastUserInput: '',
   });
 
   // ----- Ferry Store (Arcaferry integration) -----

@@ -48,6 +48,7 @@ backend/.venv_min/
 # Node.js / Frontend
 node_modules/
 frontend/dist/
+.vite/
 frontend/.vite/
 *.log
 npm-debug.log*

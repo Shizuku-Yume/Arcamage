@@ -378,11 +378,11 @@
           <template x-if="$store.card.data">
             <div>
               <div class="relative transition-[margin-right] duration-300"
-                 :class="$store.agent.ui.isOpen ? 'lg:mr-80' : 'lg:mr-0'">
+                 :class="$store.agent.ui.isOpen ? ($store.agent.ui.sidebarMode === 'cardPreview' ? 'lg:mr-[28rem]' : 'lg:mr-80') : 'lg:mr-0'">
               <div x-data="workshopPage()" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-28 lg:pb-6">
             
             <!-- Card Editor -->
-            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 lg:gap-16">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 lg:gap-20 xl:gap-24">
                 
                 <!-- Left Panel: Image & Actions -->
                 <div class="lg:col-span-4 xl:col-span-3">
@@ -436,17 +436,24 @@
                     
                     <!-- Action Buttons -->
                     <div class="space-y-2">
-                      <button @click="exportPNG()" 
+                      <button @click="openCardPreviewSidebar()"
+                              class="w-full btn-secondary h-12 px-4 text-sm font-semibold justify-center gap-2">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z" />
+                        </svg>
+                        预览卡片效果
+                      </button>
+                      <button @click="exportPNG()"
                               data-export-png
-                              class="w-full bg-brand text-white px-4 py-2.5 rounded-neo shadow-neo-lift dark:shadow-neo-lift-dark hover:bg-brand-dark transition-colors flex items-center justify-center gap-2">
-                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                              class="w-full btn-primary h-12 px-4 text-sm font-semibold gap-2">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                           <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
                         </svg>
                         导出 PNG
                       </button>
                       <div class="flex gap-2">
-                        <button @click="exportJSON()" 
-                                class="btn-secondary flex-1 px-3 py-2 text-sm font-medium">
+                        <button @click="exportJSON()"
+                                class="btn-secondary flex-1 h-11 px-2 text-xs font-semibold whitespace-nowrap">
                           导出 JSON
                         </button>
                         <button @click="resetCard()" 
@@ -578,14 +585,6 @@
                           </svg>
                           对话消息
                         </h3>
-                        <button @click="openGreetingPreviewSidebar()"
-                                class="btn-secondary w-full sm:w-auto justify-center gap-1.5 px-3 py-1.5 text-xs">
-                          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                          </svg>
-                          <span>开场白预览</span>
-                        </button>
                       </div>
                       <div class="space-y-4">
               <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between py-2 border-b border-zinc-50 dark:border-zinc-700 hover:bg-zinc-50/50 dark:hover:bg-zinc-700/50 rounded-neo transition-colors px-2 -mx-2">
@@ -744,7 +743,7 @@
           </div>
 
           <!-- Agent Toggle Tab -->
-          <button x-show="!$store.agent.ui.isOpen"
+          <button x-show="!$store.agent.ui.isOpen || $store.agent.ui.sidebarMode !== 'agent'"
                   @click="$store.agent.ui.isOpen = true; $store.agent.ui.sidebarMode = 'agent'"
                   class="hidden lg:flex fixed right-0 top-1/2 -translate-y-1/2 z-40 h-12 w-8 items-center justify-center rounded-l-neo border border-zinc-300 dark:border-zinc-600 bg-zinc-200/80 dark:bg-zinc-700/80 shadow-neo-inset dark:shadow-neo-inset-dark hover:bg-zinc-100 dark:hover:bg-zinc-600">
             <svg class="w-4 h-4 text-zinc-700 dark:text-zinc-100" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -762,7 +761,7 @@
                  x-transition:leave-start="opacity-100 translate-x-0"
                  x-transition:leave-end="opacity-0 translate-x-4"
                  class="hidden lg:flex fixed right-0 top-0 h-full w-[28rem] z-40 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 shadow-neo-lift dark:shadow-neo-lift-dark rounded-l-neo-lg overflow-visible flex-col">
-            <div x-show="$store.agent.ui.sidebarMode !== 'greeting'" class="flex flex-col h-full">
+            <div x-show="$store.agent.ui.sidebarMode === 'agent'" class="flex flex-col h-full">
             <!-- Header -->
             <div class="p-4 border-b border-zinc-200 dark:border-zinc-800">
               <div class="flex items-center justify-between">
@@ -1211,39 +1210,7 @@
             </div>
             </div>
 
-            <div x-show="$store.agent.ui.sidebarMode === 'greeting'" x-cloak x-data="greetingSidebar()" class="flex flex-col h-full">
-              <div class="p-4 border-b border-zinc-200 dark:border-zinc-800" x-effect="previewOptions; syncPreviewSelection()">
-                <div class="flex items-start justify-between gap-3">
-                  <div class="min-w-0">
-                    <h3 class="text-sm font-semibold text-zinc-800 dark:text-zinc-100">开场白预览</h3>
-                    <p class="text-xs text-zinc-500 dark:text-zinc-400 truncate" x-text="previewTitle"></p>
-                  </div>
-                  <button @click="close()"
-                          class="group btn-secondary gap-1.5 px-3 py-1.5 text-xs font-medium">
-                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                    <span>关闭</span>
-                  </button>
-                </div>
-                <div class="mt-3 space-y-3">
-                  <div>
-                    <label class="text-xs text-zinc-500 dark:text-zinc-400 block mb-1">开场白选择</label>
-                    <select x-model="previewSelection"
-                            class="w-full rounded-neo border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 px-2.5 py-1.5 text-xs text-zinc-600 dark:text-zinc-200">
-                      <template x-for="option in previewOptions" :key="option.id">
-                        <option :value="option.id" x-text="option.label"></option>
-                      </template>
-                    </select>
-                  </div>
-                </div>
-              </div>
-              <div class="flex-1 min-h-0 p-3">
-                <iframe :srcdoc="iframeContent"
-                        :sandbox="iframeSandbox"
-                        class="w-full h-full border-0 rounded-neo bg-white dark:bg-zinc-900"></iframe>
-              </div>
-            </div>
+            <div x-show="$store.agent.ui.sidebarMode === 'cardPreview'" x-cloak x-html="window.cardPreviewSidebarHTML" id="card-preview-sidebar-host" class="flex flex-col h-full"></div>
           </aside>
             </div>
           </template>
@@ -1266,7 +1233,7 @@
     </div>
   </div>
 
-    <!-- Toast / Loading / Legacy Modal / Greeting Preview: mounted via single-source HTML generators -->
+    <!-- Toast / Loading / Legacy Modal / Card Preview: mounted via single-source HTML generators -->
     <div x-html="getToastContainerHTML()"></div>
     <div x-html="getLoadingOverlayHTML()"></div>
     <div x-html="getModalContainerHTML()"></div>
@@ -1276,8 +1243,7 @@
 
     <!-- Agent Fullscreen Modal -->
     <div id="agent-modal-host"></div>
-
-    <div x-html="generateGreetingPreviewHTML()"></div>
+    <div id="card-preview-modal-host"></div>
   </div>
 
   <script type="module" src="/src/main.js"></script>

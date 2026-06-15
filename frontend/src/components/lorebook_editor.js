@@ -61,6 +61,13 @@ export function lorebookEditor(config = {}) {
     expandedEntries: {},
     searchQuery: '',
     filterEnabled: 'all',
+    filtersOpen: false,
+    filters: {
+      enabled: 'all',
+      constant: 'all',
+      selective: 'all',
+      position: 'all',
+    },
     editingKeyIndex: -1,
     newKey: '',
 
@@ -82,12 +89,27 @@ export function lorebookEditor(config = {}) {
 
     get filteredEntries() {
       let entries = this.entries;
-      
-      if (this.filterEnabled !== 'all') {
-        const showEnabled = this.filterEnabled === 'enabled';
+      const filters = this.normalizedFilters;
+
+      if (filters.enabled !== 'all') {
+        const showEnabled = filters.enabled === 'enabled';
         entries = entries.filter(e => e.enabled === showEnabled);
       }
-      
+
+      if (filters.constant !== 'all') {
+        const showConstant = filters.constant === 'constant';
+        entries = entries.filter(e => Boolean(e.constant) === showConstant);
+      }
+
+      if (filters.selective !== 'all') {
+        const showSelective = filters.selective === 'selective';
+        entries = entries.filter(e => Boolean(e.selective) === showSelective);
+      }
+
+      if (filters.position !== 'all') {
+        entries = entries.filter(e => this.normalizeEntryPosition(e.position) === filters.position);
+      }
+
       if (this.searchQuery.trim()) {
         const query = this.searchQuery.toLowerCase();
         entries = entries.filter(e => {
@@ -97,7 +119,7 @@ export function lorebookEditor(config = {}) {
           return nameMatch || keysMatch || contentMatch;
         });
       }
-      
+
       return entries;
     },
 
@@ -111,6 +133,56 @@ export function lorebookEditor(config = {}) {
 
     get constantCount() {
       return this.entries.filter(e => e.constant).length;
+    },
+
+    get positionOptions() {
+      return [
+        { value: 'default', label: '默认' },
+        { value: 'before_char', label: '角色定义前' },
+        { value: 'after_char', label: '角色定义后' },
+        { value: 'an_top', label: 'A/N 顶部' },
+        { value: 'an_bottom', label: 'A/N 底部' },
+      ];
+    },
+
+    get normalizedFilters() {
+      const enabled = this.filters?.enabled || this.filterEnabled || 'all';
+      return {
+        enabled,
+        constant: this.filters?.constant || 'all',
+        selective: this.filters?.selective || 'all',
+        position: this.filters?.position || 'all',
+      };
+    },
+
+    get activeFilterCount() {
+      return Object.values(this.normalizedFilters).filter(value => value !== 'all').length;
+    },
+
+    get filterSummaryLabel() {
+      if (this.activeFilterCount === 0) return '全部显示';
+      return `${this.activeFilterCount} 个筛选`;
+    },
+
+    setFilter(key, value) {
+      this.filters[key] = value;
+      if (key === 'enabled') {
+        this.filterEnabled = value;
+      }
+    },
+
+    clearFilters() {
+      this.filters = {
+        enabled: 'all',
+        constant: 'all',
+        selective: 'all',
+        position: 'all',
+      };
+      this.filterEnabled = 'all';
+    },
+
+    normalizeEntryPosition(position) {
+      return position || 'default';
     },
 
     init() {

@@ -2,21 +2,16 @@
 
 import os
 from pathlib import Path
+from typing import Any
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
-from app.settings import get_settings
-from app.api import health
-from app.api import cards
-from app.api import lorebook
-from app.api import remote_import
-from app.api import suppliers
-from app.api import proxy
+from app.api import cards, health, llm_proxy, lorebook, remote_import
 from app.core.exceptions import ArcamageException
 from app.middleware.exception_handlers import arcamage_exception_handler
+from app.settings import get_settings
 
 settings = get_settings()
 
@@ -46,13 +41,12 @@ app.add_middleware(
 app.include_router(health.router, prefix="/api", tags=["Health"])
 app.include_router(cards.router, prefix="/api")
 app.include_router(lorebook.router, prefix="/api")
+app.include_router(llm_proxy.router, prefix="/api")
 app.include_router(remote_import.router, prefix="/api")
-app.include_router(suppliers.router, prefix="/api")
-app.include_router(proxy.router, prefix="/api")
 
 
 @app.get("/api")
-async def api_root():
+async def api_root() -> dict[str, Any]:
     """API root endpoint with API information."""
     return {
         "name": settings.app_name,
@@ -61,13 +55,24 @@ async def api_root():
     }
 
 
+@app.api_route(
+    "/api/{_full_path:path}",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"],
+    include_in_schema=False,
+)
+async def api_not_found(_full_path: str) -> Response:
+    """Return 404 for unknown API paths before the SPA fallback can claim them."""
+
+    return Response(status_code=404)
+
+
 # Mount static files (frontend build) if available
 # This is used in production Docker deployment
 static_dir = Path(__file__).parent.parent / "static"
 if static_dir.exists() and static_dir.is_dir():
 
     @app.get("/{full_path:path}")
-    async def spa_fallback(full_path: str):
+    async def spa_fallback(full_path: str) -> FileResponse:
         """SPA fallback route - serves index.html for all non-API routes.
 
         This enables client-side routing in the SPA frontend.

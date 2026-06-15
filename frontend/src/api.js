@@ -408,42 +408,55 @@ async function fetchModelsDirect(baseUrl, apiKey) {
   return extractModelsFromPayload(payload);
 }
 
+function resolveOpenAiModelsPath(baseUrl) {
+  const normalized = String(baseUrl || '').trim().replace(/\/+$/, '').toLowerCase();
+  return normalized.endsWith('/v1') ? '/models' : '/v1/models';
+}
+
+function resolveGoogleModelsPath(baseUrl) {
+  const normalized = String(baseUrl || '').trim().replace(/\/+$/, '').toLowerCase();
+  return normalized.endsWith('/v1') || normalized.endsWith('/v1beta')
+    ? '/models'
+    : '/v1beta/models';
+}
+
+function resolveLlmProxyModelsPath(config, baseUrl) {
+  if (config?.modelsPath) return config.modelsPath;
+  if (config?.api === 'google-generative-ai' || config?.provider === 'google') {
+    return resolveGoogleModelsPath(baseUrl);
+  }
+  return resolveOpenAiModelsPath(baseUrl);
+}
+
+async function fetchModelsViaLlmProxy(config, normalizedBaseUrl) {
+  const resp = await post('/api/llm/models', {
+    provider: config?.provider || 'openai-compatible',
+    api: config?.api || 'openai-completions',
+    base_url: normalizedBaseUrl,
+    api_key: config?.apiKey,
+    headers: config?.headers || {},
+    path: resolveLlmProxyModelsPath(config, normalizedBaseUrl),
+  });
+  const data = unwrapApiResponse(resp, '获取模型列表失败', ErrorCode.NETWORK_ERROR);
+  return data.models || [];
+}
+
 export async function getSupplierModels(config) {
   const normalizedBaseUrl = normalizeSupplierBaseUrl(config?.baseUrl);
 
-  if (config?.useProxy) {
-    const resp = await post('/api/suppliers/models', {
-      base_url: normalizedBaseUrl,
-      api_key: config.apiKey,
-      use_proxy: config.useProxy,
-    });
-    const data = unwrapApiResponse(resp, '获取模型列表失败', ErrorCode.NETWORK_ERROR);
-    return data.models || [];
+  if (config?.transport === 'arcamage-proxy' || config?.useProxy) {
+    return fetchModelsViaLlmProxy(config, normalizedBaseUrl);
   }
 
   return fetchModelsDirect(normalizedBaseUrl, config?.apiKey);
 }
 
 export async function testSupplierConnection(config) {
-  const normalizedBaseUrl = normalizeSupplierBaseUrl(config?.baseUrl);
-
-  if (config?.useProxy) {
-    const resp = await post('/api/suppliers/test-connection', {
-      base_url: normalizedBaseUrl,
-      api_key: config.apiKey,
-      use_proxy: config.useProxy,
-      model: config.model || null,
-    });
-
-    return unwrapApiResponse(resp, '连接失败', ErrorCode.NETWORK_ERROR);
-  }
-
-  const models = await fetchModelsDirect(normalizedBaseUrl, config?.apiKey);
-  return {
+  return getSupplierModels(config).then((models) => ({
     success: true,
     message: '连接成功',
     models,
-  };
+  }));
 }
 
 function unwrapApiResponse(resp, errorMessage, errorCode) {

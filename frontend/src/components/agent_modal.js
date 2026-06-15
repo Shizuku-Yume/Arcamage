@@ -2817,20 +2817,20 @@ export function registerAgentModalComponent() {
 export function getAgentModalHTML() {
   return `
     <div x-data="agentModal()"
-         x-show="$store.agent.ui.isFullscreen || hasOverlayModalOpen"
+         x-show="($store.agent.ui.isFullscreen && $store.agent.ui.sidebarMode !== 'cardPreview') || hasOverlayModalOpen"
          x-cloak
          data-agent-modal-root
          class="fixed inset-0 z-70">
-      <div x-show="$store.agent.ui.isFullscreen"
+      <div x-show="$store.agent.ui.isFullscreen && $store.agent.ui.sidebarMode !== 'cardPreview'"
            class="absolute inset-0 bg-zinc-900/70 backdrop-blur-sm"
            @click="close()"></div>
         <div class="relative"
-           :class="$store.agent.ui.isFullscreen
+           :class="($store.agent.ui.isFullscreen && $store.agent.ui.sidebarMode !== 'cardPreview')
              ? 'h-[100dvh] w-full bg-zinc-50 dark:bg-zinc-900 flex p-0 sm:p-4 gap-0 sm:gap-4 pt-[env(safe-area-inset-top)] sm:pt-4 pb-[env(safe-area-inset-bottom)] sm:pb-4'
              : 'h-0 w-0 p-0 gap-0 overflow-hidden'">
         <!-- Main Panel -->
         <div class="flex-1 min-w-0 flex flex-col rounded-none sm:rounded-neo-lg border-0 sm:border border-zinc-200 dark:border-zinc-700 bg-white/95 dark:bg-zinc-800/95 shadow-neo-lift dark:shadow-neo-lift-dark overflow-hidden"
-             :class="$store.agent.ui.isFullscreen
+             :class="($store.agent.ui.isFullscreen && $store.agent.ui.sidebarMode !== 'cardPreview')
                ? ''
                : 'w-0 h-0 min-w-0 min-h-0 border-transparent bg-transparent shadow-none overflow-hidden'">
           <div class="relative z-20 flex flex-wrap items-center justify-between gap-2 px-3 sm:px-6 py-2.5 sm:py-3 border-b border-zinc-200 dark:border-zinc-700">

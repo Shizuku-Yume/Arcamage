@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import { __agentRuntimeTesting } from '../components/agent_runtime.js';
 
+function messageText(message) {
+  return message?.content?.[0]?.text || '';
+}
+
 describe('agent_runtime skill message injection', () => {
   it('injects guardrail and skill context before history', () => {
     const history = [
@@ -17,11 +21,11 @@ describe('agent_runtime skill message injection', () => {
     expect(messages[0].role).toBe('system');
     expect(messages[1].role).toBe('system');
     expect(messages[2].role).toBe('system');
-    expect(messages[2].content).toContain('Skill · Demo');
-    expect(messages[3].content).toBe('old assistant');
-    expect(messages[4].content).toBe('old user');
+    expect(messageText(messages[2])).toContain('Skill · Demo');
+    expect(messageText(messages[3])).toBe('old assistant');
+    expect(messageText(messages[4])).toBe('old user');
     expect(messages[5].role).toBe('user');
-    expect(messages[5].content).toContain('用户指令：do something');
+    expect(messageText(messages[5])).toContain('用户指令：do something');
   });
 
   it('keeps original structure when no skill context', () => {
@@ -31,7 +35,7 @@ describe('agent_runtime skill message injection', () => {
     const messages = __agentRuntimeTesting.buildToolMessages(history, 'continue', payload, null);
     expect(messages).toHaveLength(3);
     expect(messages[0].role).toBe('system');
-    expect(messages[1].content).toBe('old assistant');
+    expect(messageText(messages[1])).toBe('old assistant');
     expect(messages[2].role).toBe('user');
   });
 });

@@ -521,6 +521,84 @@ input.hide-password-reveal::-webkit-strong-password-auto-fill-button {
   word-break: break-word;
 }
 
+.agent-markdown,
+.card-preview-markdown {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.agent-markdown pre,
+.agent-markdown table,
+.card-preview-markdown pre,
+.card-preview-markdown table {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.agent-markdown code,
+.card-preview-markdown code {
+  white-space: pre-wrap;
+}
+
+.agent-markdown pre code,
+.card-preview-markdown pre code {
+  white-space: pre;
+}
+
+.card-preview-effect-frame,
+.card-preview-inline-effect {
+  width: min(100%, 360px);
+  margin-inline: auto;
+  overscroll-behavior: contain;
+}
+
+.card-preview-effect-frame {
+  max-height: min(72vh, 720px);
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(212 212 216) transparent;
+}
+
+.card-preview-inline-effect {
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
+.card-preview-inline-effect > * {
+  max-width: 100%;
+}
+
+.card-preview-effect-frame::-webkit-scrollbar,
+.card-preview-inline-effect::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.card-preview-effect-frame::-webkit-scrollbar-track,
+.card-preview-inline-effect::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.card-preview-effect-frame::-webkit-scrollbar-thumb,
+.card-preview-inline-effect::-webkit-scrollbar-thumb {
+  background-color: rgb(212 212 216);
+  border-radius: 3px;
+}
+
+.card-preview-effect-frame iframe {
+  color-scheme: light dark;
+}
+
+.dark .card-preview-effect-frame,
+.dark .card-preview-inline-effect {
+  scrollbar-color: rgb(63 63 70) transparent;
+}
+
+.dark .card-preview-effect-frame::-webkit-scrollbar-thumb,
+.dark .card-preview-inline-effect::-webkit-scrollbar-thumb {
+  background-color: rgb(63 63 70);
+}
+
 /* 隐藏但保持无障碍 */
 .sr-only-focusable:not(:focus):not(:focus-within) {
   position: absolute;

@@ -7,7 +7,7 @@ API 请求和响应模型
 from enum import Enum
 from typing import Any, Dict, Generic, List, Literal, Optional, TypeVar
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from .card_models import CharacterCardV3, Lorebook
 
@@ -118,34 +118,33 @@ class SupplierModel(BaseModel):
     id: str = Field(..., description="模型 ID")
 
 
-class SupplierConnectionRequest(BaseModel):
-    """Supplier connection test request"""
+class LlmProxyRequest(BaseModel):
+    """Controlled generic LLM proxy request."""
 
-    base_url: str = Field(..., description="OpenAI 兼容 API Base URL")
+    model_config = ConfigDict(extra="allow")
+
+    provider: str = Field(default="openai-compatible", description="供应商类型")
+    api: str = Field(default="openai-completions", description="API 协议")
+    base_url: str = Field(..., description="LLM API Base URL")
     api_key: str = Field(..., description="API Key")
-    model: Optional[str] = Field(default=None, description="当前选择模型")
-    use_proxy: bool = Field(default=False, description="是否使用代理")
+    method: Literal["GET", "POST"] = Field(default="POST", description="HTTP 方法")
+    path: str = Field(..., description="相对 API 路径，必须以 / 开头")
+    headers: Dict[str, str] = Field(default_factory=dict, description="允许透传的请求头")
+    body: Optional[Any] = Field(default=None, description="JSON 请求体")
+    stream: bool = Field(default=True, description="是否透传流式响应")
 
 
-class SupplierModelsRequest(BaseModel):
-    """Supplier models request"""
+class LlmModelsRequest(BaseModel):
+    """Controlled generic LLM models request."""
 
-    base_url: str = Field(..., description="OpenAI 兼容 API Base URL")
+    model_config = ConfigDict(extra="allow")
+
+    provider: str = Field(default="openai-compatible", description="供应商类型")
+    api: str = Field(default="openai-completions", description="API 协议")
+    base_url: str = Field(..., description="LLM API Base URL")
     api_key: str = Field(..., description="API Key")
-    use_proxy: bool = Field(default=False, description="是否使用代理")
-
-
-class SupplierChatRequest(BaseModel):
-    """Supplier chat proxy request"""
-
-    base_url: str = Field(..., description="OpenAI 兼容 API Base URL")
-    api_key: str = Field(..., description="API Key")
-    model: str = Field(..., description="模型 ID")
-    messages: List[Dict[str, Any]] = Field(..., description="聊天消息列表")
-    stream: bool = Field(default=True, description="是否使用流式响应")
-    temperature: Optional[float] = Field(default=None, description="采样温度")
-    tools: Optional[List[Dict[str, Any]]] = Field(default=None, description="工具列表")
-    tool_choice: Optional[Any] = Field(default=None, description="工具选择策略")
+    headers: Dict[str, str] = Field(default_factory=dict, description="允许透传的请求头")
+    path: str = Field(default="/v1/models", description="模型列表路径")
 
 
 class SupplierConnectionResult(BaseModel):
@@ -176,9 +175,8 @@ __all__ = [
     "LorebookImportResult",
     "TokenEstimate",
     "SupplierModel",
-    "SupplierConnectionRequest",
-    "SupplierModelsRequest",
-    "SupplierChatRequest",
+    "LlmProxyRequest",
+    "LlmModelsRequest",
     "SupplierConnectionResult",
     "SupplierModelsResult",
 ]

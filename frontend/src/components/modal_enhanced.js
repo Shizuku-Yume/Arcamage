@@ -683,11 +683,61 @@ export function getModalEnhancedHTML() {
                                 <input type="text" x-model="searchQuery" placeholder="搜索条目..." 
                                        class="w-full pl-9 pr-3 py-1.5 bg-zinc-50 dark:bg-zinc-800 border-transparent  rounded-neo text-xs focus:bg-white dark:focus:bg-zinc-700 focus:border-zinc-200 dark:focus:border-zinc-600 outline-none  placeholder-zinc-400 dark:placeholder-zinc-500 text-zinc-600 dark:text-zinc-200">
                             </div>
-                            <select x-model="filterEnabled" class="pl-3 pr-7 py-1.5 bg-zinc-900/[0.03] dark:bg-zinc-800/80 border-2 border-zinc-200/80 dark:border-zinc-700/80 rounded-neo text-xs text-zinc-600 dark:text-zinc-200 outline-none cursor-pointer   focus:border-brand dark:focus:border-brand-400">
-                              <option value="all">全部显示</option>
-                              <option value="enabled">仅启用</option>
-                              <option value="disabled">仅禁用</option>
-                            </select>
+                            <div class="relative">
+                              <button type="button"
+                                      @click="filtersOpen = !filtersOpen"
+                                      class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-zinc-900/[0.03] dark:bg-zinc-800/80 border-2 border-zinc-200/80 dark:border-zinc-700/80 rounded-neo text-xs text-zinc-600 dark:text-zinc-200 hover:border-brand dark:hover:border-brand-400 transition-colors">
+                                <svg class="w-3.5 h-3.5 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                  <path stroke-linecap="round" stroke-linejoin="round" d="M3 4.5h18M6.75 12h10.5M10.5 19.5h3" />
+                                </svg>
+                                <span x-text="filterSummaryLabel"></span>
+                                <span x-show="activeFilterCount > 0" class="min-w-[1.25rem] h-5 px-1 rounded-full bg-brand text-white text-[10px] inline-flex items-center justify-center" x-text="activeFilterCount"></span>
+                              </button>
+                              <div x-show="filtersOpen"
+                                   x-transition
+                                   @click.outside="filtersOpen = false"
+                                   class="absolute left-0 top-full z-30 mt-2 w-80 rounded-neo border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-neo-lift dark:shadow-neo-lift-dark p-3 space-y-3">
+                                <div class="flex items-center justify-between">
+                                  <span class="text-xs font-semibold text-zinc-700 dark:text-zinc-200">筛选条目</span>
+                                  <button type="button" @click="clearFilters()" class="text-xs text-zinc-400 hover:text-brand dark:hover:text-brand-400">重置</button>
+                                </div>
+                                <div>
+                                  <div class="text-[11px] text-zinc-400 dark:text-zinc-500 mb-1.5">启用状态</div>
+                                  <div class="grid grid-cols-3 gap-1">
+                                    <button type="button" @click="setFilter('enabled', 'all')" :class="normalizedFilters.enabled === 'all' ? 'bg-brand text-white' : 'bg-zinc-50 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'" class="px-2 py-1.5 rounded-neo text-xs">全部</button>
+                                    <button type="button" @click="setFilter('enabled', 'enabled')" :class="normalizedFilters.enabled === 'enabled' ? 'bg-brand text-white' : 'bg-zinc-50 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'" class="px-2 py-1.5 rounded-neo text-xs">启用</button>
+                                    <button type="button" @click="setFilter('enabled', 'disabled')" :class="normalizedFilters.enabled === 'disabled' ? 'bg-brand text-white' : 'bg-zinc-50 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'" class="px-2 py-1.5 rounded-neo text-xs">禁用</button>
+                                  </div>
+                                </div>
+                                <div class="grid grid-cols-2 gap-3">
+                                  <div>
+                                    <div class="text-[11px] text-zinc-400 dark:text-zinc-500 mb-1.5">常驻</div>
+                                    <div class="grid grid-cols-1 gap-1">
+                                      <button type="button" @click="setFilter('constant', 'all')" :class="normalizedFilters.constant === 'all' ? 'bg-brand text-white' : 'bg-zinc-50 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'" class="px-2 py-1.5 rounded-neo text-xs text-left">全部</button>
+                                      <button type="button" @click="setFilter('constant', 'constant')" :class="normalizedFilters.constant === 'constant' ? 'bg-brand text-white' : 'bg-zinc-50 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'" class="px-2 py-1.5 rounded-neo text-xs text-left">仅常驻</button>
+                                      <button type="button" @click="setFilter('constant', 'non_constant')" :class="normalizedFilters.constant === 'non_constant' ? 'bg-brand text-white' : 'bg-zinc-50 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'" class="px-2 py-1.5 rounded-neo text-xs text-left">非常驻</button>
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <div class="text-[11px] text-zinc-400 dark:text-zinc-500 mb-1.5">选择性</div>
+                                    <div class="grid grid-cols-1 gap-1">
+                                      <button type="button" @click="setFilter('selective', 'all')" :class="normalizedFilters.selective === 'all' ? 'bg-brand text-white' : 'bg-zinc-50 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'" class="px-2 py-1.5 rounded-neo text-xs text-left">全部</button>
+                                      <button type="button" @click="setFilter('selective', 'selective')" :class="normalizedFilters.selective === 'selective' ? 'bg-brand text-white' : 'bg-zinc-50 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'" class="px-2 py-1.5 rounded-neo text-xs text-left">选择性</button>
+                                      <button type="button" @click="setFilter('selective', 'non_selective')" :class="normalizedFilters.selective === 'non_selective' ? 'bg-brand text-white' : 'bg-zinc-50 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'" class="px-2 py-1.5 rounded-neo text-xs text-left">非选择性</button>
+                                    </div>
+                                  </div>
+                                </div>
+                                <div>
+                                  <div class="text-[11px] text-zinc-400 dark:text-zinc-500 mb-1.5">插入位置</div>
+                                  <div class="grid grid-cols-2 gap-1">
+                                    <button type="button" @click="setFilter('position', 'all')" :class="normalizedFilters.position === 'all' ? 'bg-brand text-white' : 'bg-zinc-50 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'" class="px-2 py-1.5 rounded-neo text-xs text-left">全部位置</button>
+                                    <template x-for="option in positionOptions" :key="option.value">
+                                      <button type="button" @click="setFilter('position', option.value)" :class="normalizedFilters.position === option.value ? 'bg-brand text-white' : 'bg-zinc-50 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'" class="px-2 py-1.5 rounded-neo text-xs text-left" x-text="option.label"></button>
+                                    </template>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
                         </div>
                         
                         <!-- Right: Actions -->
@@ -960,6 +1010,45 @@ export function getModalEnhancedHTML() {
                       </div>
                     </div>
 
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div class="relative" @keydown.escape.window="supplierApiOpen = false">
+                        <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-200 mb-2">协议</label>
+                        <button type="button"
+                                @click="supplierApiOpen = !supplierApiOpen"
+                                class="w-full flex items-center justify-between px-4 py-2.5 bg-zinc-900/[0.03] dark:bg-zinc-800/80 border-2 border-zinc-200/80 dark:border-zinc-700/80 rounded-neo text-sm text-zinc-800 dark:text-zinc-100 hover:border-brand dark:hover:border-brand-400 transition-colors">
+                          <span class="truncate" x-text="currentSupplierApiLabel"></span>
+                          <svg class="w-4 h-4 text-zinc-400 transition-transform" :class="supplierApiOpen ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </button>
+                        <div x-show="supplierApiOpen"
+                             x-transition
+                             @click.outside="supplierApiOpen = false"
+                             class="absolute left-0 right-0 z-20 mt-2 overflow-hidden rounded-neo border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-neo-lift dark:shadow-neo-lift-dark">
+                          <template x-for="option in supplierApiOptions" :key="option.value">
+                            <button type="button"
+                                    @click="selectSupplierApi(option.value)"
+                                    :class="supplierApi === option.value ? 'bg-brand-50/60 dark:bg-brand-900/25 text-brand-700 dark:text-brand-300' : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'"
+                                    class="w-full px-4 py-2.5 text-left text-sm transition-colors"
+                                    x-text="option.label"></button>
+                          </template>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-200 mb-2">传输</label>
+                        <div class="inline-flex w-full rounded-neo border-2 border-zinc-200/80 dark:border-zinc-700/80 bg-zinc-900/[0.03] dark:bg-zinc-800/80 p-1 gap-1">
+                          <template x-for="option in supplierTransportOptions" :key="option.value">
+                            <button type="button"
+                                    @click="selectSupplierTransport(option.value)"
+                                    :class="supplierTransport === option.value ? 'bg-brand text-white shadow-none' : 'bg-transparent text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700/70'"
+                                    class="flex-1 px-3 py-2 rounded-neo text-sm font-medium transition-colors"
+                                    x-text="option.label"></button>
+                          </template>
+                        </div>
+                      </div>
+                    </div>
+
                     <div>
                       <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-200 mb-2">API 地址</label>
                       <input type="text" x-model="apiUrl"
@@ -990,48 +1079,77 @@ export function getModalEnhancedHTML() {
 
                     <div class="flex items-center justify-between p-4 bg-zinc-50 dark:bg-zinc-900 rounded-neo">
                       <div>
-                        <h4 class="text-sm font-medium text-zinc-700 dark:text-zinc-200">使用代理</h4>
-                        <p class="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">通过 Arcamage 后端转发 API 请求，可解决跨域问题</p>
+                        <h4 class="text-sm font-medium text-zinc-700 dark:text-zinc-200">Reasoning</h4>
+                        <p class="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">请求模型返回独立思考内容</p>
                       </div>
-                      <button @click="proxyEnabled = !proxyEnabled"
-                              :class="proxyEnabled ? 'bg-brand' : 'bg-zinc-300 dark:bg-zinc-600'"
+                      <button @click="reasoningEnabled = !reasoningEnabled"
+                              :class="reasoningEnabled ? 'bg-brand' : 'bg-zinc-300 dark:bg-zinc-600'"
                               class="relative w-11 h-6 rounded-neo ">
-                        <span :class="proxyEnabled ? 'translate-x-[22px]' : 'translate-x-1'"
+                        <span :class="reasoningEnabled ? 'translate-x-[22px]' : 'translate-x-1'"
                               class="absolute top-1 left-0 w-4 h-4 bg-white rounded-neo shadow transition-transform"></span>
                       </button>
                     </div>
 
-                    <div class="flex items-center gap-4">
-                      <button @click="testConnection()"
-                              :disabled="!apiUrl || !apiKey || connectionStatus === 'testing'"
-                              class="btn-primary px-4 py-2 text-sm font-medium flex items-center gap-2">
-                        <span x-show="connectionStatus !== 'testing'">测试连接</span>
-                        <span x-show="connectionStatus === 'testing'" class="flex items-center gap-2">
+                    <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+                      <button @click="loadModels()"
+                              :disabled="!apiUrl || !apiKey || modelsStatus === 'loading' || connectionStatus === 'testing'"
+                              class="btn-primary px-4 py-2 text-sm font-medium flex items-center gap-2 justify-center w-full sm:w-auto">
+                        <span x-show="modelsStatus !== 'loading'">获取模型列表</span>
+                        <span x-show="modelsStatus === 'loading'" class="flex items-center gap-2">
                           <span class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                          连接中...
+                          获取中...
                         </span>
                       </button>
 
-                      <div class="flex items-center gap-2">
+                      <div class="flex items-center gap-2 min-w-0 flex-1">
                         <span :class="connectionStatus === 'success' ? 'bg-brand' : connectionStatus === 'error' ? 'bg-danger' : 'bg-zinc-300 dark:bg-zinc-600'"
-                              class="w-2.5 h-2.5 rounded-full"></span>
-                        <span class="text-sm" :class="connectionStatus === 'success' ? 'text-brand-600 dark:text-brand-400' : connectionStatus === 'error' ? 'text-danger dark:text-danger-light' : 'text-zinc-500 dark:text-zinc-400'"
+                              class="w-2.5 h-2.5 rounded-full flex-shrink-0"></span>
+                        <span class="text-sm truncate" :class="connectionStatus === 'success' ? 'text-brand-600 dark:text-brand-400' : connectionStatus === 'error' ? 'text-danger dark:text-danger-light' : 'text-zinc-500 dark:text-zinc-400'"
                               x-text="connectionMessage || '未测试'"></span>
                       </div>
+
+                      <button @click="testConnection()"
+                              :disabled="!apiUrl || !apiKey || !selectedModel || connectionStatus === 'testing' || modelsStatus === 'loading'"
+                              class="btn-secondary px-4 py-2 text-sm font-medium flex items-center gap-2 justify-center w-full sm:w-auto sm:ml-auto">
+                        <span x-show="connectionStatus !== 'testing'">测试连接</span>
+                        <span x-show="connectionStatus === 'testing'" class="flex items-center gap-2">
+                          <span class="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
+                          测试中...
+                        </span>
+                      </button>
                     </div>
 
                     <div x-show="availableModels.length > 0 || selectedModel">
                       <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-200 mb-2">选择模型</label>
-                      <select x-model="selectedModel"
-                              class="w-full px-4 py-2.5 bg-zinc-900/[0.03] dark:bg-zinc-800/80 border-2 border-zinc-200/80 dark:border-zinc-700/80 rounded-neo outline-none  text-sm text-zinc-800 dark:text-zinc-100  focus:border-brand dark:focus:border-brand-400">
-                        <template x-if="selectedModel && !availableModels.find(m => m.id === selectedModel)">
-                          <option :value="selectedModel" x-text="selectedModel" selected></option>
-                        </template>
-                        <template x-for="model in availableModels" :key="model.id">
-                          <option :value="model.id" x-text="model.id"></option>
-                        </template>
-                      </select>
-                      <p x-show="selectedModel && availableModels.length === 0" class="text-xs text-zinc-400 dark:text-zinc-500 mt-1">点击"测试连接"可获取更多模型选项</p>
+                      <div class="rounded-neo border-2 border-zinc-200/80 dark:border-zinc-700/80 bg-zinc-900/[0.03] dark:bg-zinc-800/80 overflow-hidden">
+                        <div class="px-3 py-2 border-b border-zinc-200/70 dark:border-zinc-700/70">
+                          <div class="text-xs text-zinc-400 dark:text-zinc-500 mb-1">当前模型</div>
+                          <div class="text-sm font-medium text-zinc-800 dark:text-zinc-100 truncate" x-text="selectedModel || '未选择'"></div>
+                        </div>
+                        <div x-show="availableModels.length > 0" class="p-2 border-b border-zinc-200/70 dark:border-zinc-700/70">
+                          <input type="search" x-model="modelFilter"
+                                 placeholder="搜索模型名称..."
+                                 class="w-full px-3 py-2 bg-white/70 dark:bg-zinc-900/70 border border-zinc-200 dark:border-zinc-700 rounded-neo outline-none text-sm text-zinc-800 dark:text-zinc-100 focus:border-brand dark:focus:border-brand-400">
+                        </div>
+                        <div x-show="availableModels.length > 0" class="max-h-72 overflow-y-auto custom-scrollbar p-2 space-y-3">
+                          <template x-for="group in filteredModelGroups" :key="group.label">
+                            <div>
+                              <div class="sticky top-0 z-10 px-2 py-1 text-[11px] font-semibold text-zinc-400 dark:text-zinc-500 bg-zinc-100/95 dark:bg-zinc-800/95" x-text="group.label"></div>
+                              <div class="space-y-1 mt-1">
+                                <template x-for="model in group.models" :key="model.id">
+                                  <button type="button"
+                                          @click="selectModel(model.id)"
+                                          :class="selectedModel === model.id ? 'border-brand dark:border-brand-400 bg-brand-50/60 dark:bg-brand-900/25 text-brand-700 dark:text-brand-300' : 'border-transparent text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700/70'"
+                                          class="w-full px-2.5 py-2 rounded-neo border text-left text-sm font-mono truncate transition-colors"
+                                          x-text="model.id"></button>
+                                </template>
+                              </div>
+                            </div>
+                          </template>
+                          <p x-show="filteredModelGroups.length === 0" class="px-2 py-4 text-sm text-zinc-400 dark:text-zinc-500 text-center">没有匹配的模型</p>
+                        </div>
+                      </div>
+                      <p x-show="selectedModel && availableModels.length === 0" class="text-xs text-zinc-400 dark:text-zinc-500 mt-1">点击“获取模型列表”可刷新模型选项，上次获取结果会保留在此处</p>
                     </div>
 
                     <div>
@@ -1041,6 +1159,53 @@ export function getModalEnhancedHTML() {
                              @keydown.enter.prevent="commitTemperature(); $event.target.blur()"
                              class="w-32 px-4 py-2.5 bg-zinc-900/[0.03] dark:bg-zinc-800/80 border-2 border-zinc-200/80 dark:border-zinc-700/80 rounded-neo outline-none  text-sm text-zinc-800 dark:text-zinc-100  focus:border-brand dark:focus:border-brand-400">
                       <p class="text-xs text-zinc-400 dark:text-zinc-500 mt-1">控制输出随机性，范围 0.0 - 2.0，默认 1.0</p>
+                    </div>
+
+                    <div class="border border-zinc-200/70 dark:border-zinc-800/80 rounded-neo overflow-hidden">
+                      <button @click="showSupplierAdvanced = !showSupplierAdvanced"
+                              class="w-full flex items-center justify-between p-4 bg-zinc-50 dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors">
+                        <div class="flex items-center gap-2">
+                          <svg class="w-4 h-4 text-zinc-500 dark:text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                          <span class="text-sm font-medium text-zinc-700 dark:text-zinc-200">高级配置</span>
+                        </div>
+                        <svg :class="showSupplierAdvanced ? 'rotate-180' : ''"
+                             class="w-4 h-4 text-zinc-400 transition-transform"
+                             fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+
+                      <div x-show="showSupplierAdvanced" x-collapse class="border-t border-zinc-200/70 dark:border-zinc-800/80">
+                        <div class="p-4 space-y-4 bg-white dark:bg-zinc-900/50">
+                          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                              <label class="block text-sm text-zinc-600 dark:text-zinc-300 mb-1">Context Window</label>
+                              <input type="text" x-model="contextWindowInput" inputmode="numeric" pattern="[0-9]*"
+                                     @blur="commitSupplierAdvancedInputs()"
+                                     class="w-full px-3 py-2 bg-zinc-900/[0.03] dark:bg-zinc-800/80 border-2 border-zinc-200/80 dark:border-zinc-700/80 rounded-neo outline-none text-sm text-zinc-800 dark:text-zinc-100 focus:border-brand dark:focus:border-brand-400">
+                            </div>
+                            <div>
+                              <label class="block text-sm text-zinc-600 dark:text-zinc-300 mb-1">Max Tokens</label>
+                              <input type="text" x-model="maxTokensInput" inputmode="numeric" pattern="[0-9]*"
+                                     @blur="commitSupplierAdvancedInputs()"
+                                     class="w-full px-3 py-2 bg-zinc-900/[0.03] dark:bg-zinc-800/80 border-2 border-zinc-200/80 dark:border-zinc-700/80 rounded-neo outline-none text-sm text-zinc-800 dark:text-zinc-100 focus:border-brand dark:focus:border-brand-400">
+                            </div>
+                          </div>
+
+                          <div>
+                            <label class="block text-sm text-zinc-600 dark:text-zinc-300 mb-1">Compat JSON</label>
+                            <textarea x-model="compatJson"
+                                      @blur="commitSupplierAdvancedInputs()"
+                                      rows="5"
+                                      spellcheck="false"
+                                      class="w-full px-3 py-2 bg-zinc-900/[0.03] dark:bg-zinc-800/80 border-2 border-zinc-200/80 dark:border-zinc-700/80 rounded-neo outline-none text-sm font-mono text-zinc-800 dark:text-zinc-100 focus:border-brand dark:focus:border-brand-400"></textarea>
+                            <p x-show="compatJsonError" class="text-xs text-danger dark:text-danger-light mt-1" x-text="compatJsonError"></p>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                   </template>
@@ -1800,7 +1965,22 @@ export function getModalEnhancedHTML() {
                   entry: modal.draft.entry,
                   newKey: '',
                   showAdvanced: false,
-                  
+                  positionOpen: false,
+                  positionOptions: [
+                    { value: null, label: '默认' },
+                    { value: 'before_char', label: 'Before Char' },
+                    { value: 'after_char', label: 'After Char' },
+                    { value: 'an_top', label: 'A/N Top' },
+                    { value: 'an_bottom', label: 'A/N Bottom' },
+                  ],
+                  get currentPositionLabel() {
+                    return this.positionOptions.find((option) => option.value === (this.entry.position ?? null))?.label || '默认';
+                  },
+                  selectPosition(value) {
+                    this.entry.position = value;
+                    this.positionOpen = false;
+                  },
+
                   addKey() {
                     const trimmed = this.newKey.trim();
                     if (!trimmed) return;
@@ -1942,16 +2122,28 @@ export function getModalEnhancedHTML() {
                               <span>正则表达式</span>
                             </button>
                           </div>
-                          <div class="lg:w-32">
+                          <div class="lg:w-36 relative" @keydown.escape.window="positionOpen = false">
                             <label class="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">插入位置</label>
-                            <select x-model="entry.position" 
-                                    class="w-full px-2.5 py-1.5 bg-zinc-900/[0.03] dark:bg-zinc-800/80 border-2 border-zinc-200/80 dark:border-zinc-700/80 rounded-neo text-xs text-zinc-700 dark:text-zinc-200 outline-none cursor-pointer   focus:border-brand dark:focus:border-brand-400">
-                              <option :value="null">默认</option>
-                              <option value="before_char">Before Char</option>
-                              <option value="after_char">After Char</option>
-                              <option value="an_top">A/N Top</option>
-                              <option value="an_bottom">A/N Bottom</option>
-                            </select>
+                            <button type="button"
+                                    @click="positionOpen = !positionOpen"
+                                    class="w-full flex items-center justify-between px-2.5 py-1.5 bg-zinc-900/[0.03] dark:bg-zinc-800/80 border-2 border-zinc-200/80 dark:border-zinc-700/80 rounded-neo text-xs text-zinc-700 dark:text-zinc-200 hover:border-brand dark:hover:border-brand-400 transition-colors">
+                              <span class="truncate" x-text="currentPositionLabel"></span>
+                              <svg class="w-3.5 h-3.5 text-zinc-400 transition-transform" :class="positionOpen ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                              </svg>
+                            </button>
+                            <div x-show="positionOpen"
+                                 x-transition
+                                 @click.outside="positionOpen = false"
+                                 class="absolute left-0 right-0 bottom-full z-20 mb-1 overflow-hidden rounded-neo border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-neo-lift dark:shadow-neo-lift-dark">
+                              <template x-for="option in positionOptions" :key="option.label">
+                                <button type="button"
+                                        @click="selectPosition(option.value)"
+                                        :class="(entry.position ?? null) === option.value ? 'bg-brand-50/60 dark:bg-brand-900/25 text-brand-700 dark:text-brand-300' : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'"
+                                        class="w-full px-2.5 py-1.5 text-left text-xs transition-colors"
+                                        x-text="option.label"></button>
+                              </template>
+                            </div>
                           </div>
                           <div class="lg:w-24">
                             <label class="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">优先级</label>
