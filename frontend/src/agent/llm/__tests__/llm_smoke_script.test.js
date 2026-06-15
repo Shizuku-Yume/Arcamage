@@ -12,7 +12,10 @@ import {
 } from '../../../../scripts/llm_smoke.mjs';
 
 const ENV_KEY = 'ARCAMAGE_UNIT_SMOKE_KEY';
-const EXAMPLE_CONFIG_PATH = resolve(process.cwd(), '../docs/LLM_PROVIDER_SMOKE.example.json');
+const EXAMPLE_CONFIG_PATH = resolve(
+  process.cwd(),
+  'src/agent/llm/__tests__/fixtures/llm_provider_smoke.example.json',
+);
 
 function caseKind(item) {
   if (item.toolErrorRetry) return 'toolErrorRetry';

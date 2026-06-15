@@ -1,0 +1,153 @@
+{
+  "cases": [
+    {
+      "name": "openai-compatible-direct-text",
+      "provider": "openai-compatible",
+      "api": "openai-completions",
+      "transport": "direct",
+      "baseUrl": "https://api.openai.com/v1",
+      "apiKeyEnv": "OPENAI_API_KEY",
+      "model": "REPLACE_WITH_OPENAI_CHAT_MODEL",
+      "prompt": "Reply with: arcamage-smoke-ok",
+      "expectText": "arcamage-smoke-ok"
+    },
+    {
+      "name": "openai-compatible-direct-tool-round",
+      "provider": "openai-compatible",
+      "api": "openai-completions",
+      "transport": "direct",
+      "baseUrl": "https://api.openai.com/v1",
+      "apiKeyEnv": "OPENAI_API_KEY",
+      "model": "REPLACE_WITH_OPENAI_CHAT_MODEL",
+      "toolRound": true
+    },
+    {
+      "name": "openai-compatible-direct-multi-tool-round",
+      "provider": "openai-compatible",
+      "api": "openai-completions",
+      "transport": "direct",
+      "baseUrl": "https://api.openai.com/v1",
+      "apiKeyEnv": "OPENAI_API_KEY",
+      "model": "REPLACE_WITH_OPENAI_CHAT_MODEL",
+      "toolRound": true,
+      "toolRounds": 2,
+      "marker": "arcamage-direct-multi-tool-ok"
+    },
+    {
+      "name": "openai-compatible-direct-tool-error-retry",
+      "provider": "openai-compatible",
+      "api": "openai-completions",
+      "transport": "direct",
+      "baseUrl": "https://api.openai.com/v1",
+      "apiKeyEnv": "OPENAI_API_KEY",
+      "model": "REPLACE_WITH_OPENAI_CHAT_MODEL",
+      "toolErrorRetry": true,
+      "marker": "arcamage-direct-tool-retry-ok"
+    },
+    {
+      "name": "openai-compatible-proxy-text",
+      "provider": "openai-compatible",
+      "api": "openai-completions",
+      "transport": "arcamage-proxy",
+      "baseUrl": "https://api.openai.com/v1",
+      "apiKeyEnv": "OPENAI_API_KEY",
+      "model": "REPLACE_WITH_OPENAI_CHAT_MODEL",
+      "prompt": "Reply with: arcamage-smoke-ok",
+      "expectText": "arcamage-smoke-ok"
+    },
+    {
+      "name": "openai-compatible-proxy-tool-round",
+      "provider": "openai-compatible",
+      "api": "openai-completions",
+      "transport": "arcamage-proxy",
+      "baseUrl": "https://api.openai.com/v1",
+      "apiKeyEnv": "OPENAI_API_KEY",
+      "model": "REPLACE_WITH_OPENAI_CHAT_MODEL",
+      "toolRound": true
+    },
+    {
+      "name": "openai-responses-proxy-text",
+      "provider": "openai",
+      "api": "openai-responses",
+      "transport": "arcamage-proxy",
+      "baseUrl": "https://api.openai.com",
+      "apiKeyEnv": "OPENAI_API_KEY",
+      "model": "REPLACE_WITH_OPENAI_RESPONSES_MODEL",
+      "prompt": "Reply with: arcamage-smoke-ok",
+      "expectText": "arcamage-smoke-ok"
+    },
+    {
+      "name": "openai-responses-proxy-tool-round",
+      "provider": "openai",
+      "api": "openai-responses",
+      "transport": "arcamage-proxy",
+      "baseUrl": "https://api.openai.com",
+      "apiKeyEnv": "OPENAI_API_KEY",
+      "model": "REPLACE_WITH_OPENAI_RESPONSES_MODEL",
+      "toolRound": true
+    },
+    {
+      "name": "anthropic-proxy-text",
+      "provider": "anthropic",
+      "api": "anthropic-messages",
+      "transport": "arcamage-proxy",
+      "baseUrl": "https://api.anthropic.com",
+      "apiKeyEnv": "ANTHROPIC_API_KEY",
+      "model": "REPLACE_WITH_ANTHROPIC_MODEL",
+      "prompt": "Reply with: arcamage-smoke-ok",
+      "expectText": "arcamage-smoke-ok"
+    },
+    {
+      "name": "anthropic-proxy-tool-round",
+      "provider": "anthropic",
+      "api": "anthropic-messages",
+      "transport": "arcamage-proxy",
+      "baseUrl": "https://api.anthropic.com",
+      "apiKeyEnv": "ANTHROPIC_API_KEY",
+      "model": "REPLACE_WITH_ANTHROPIC_MODEL",
+      "toolRound": true
+    },
+    {
+      "name": "google-proxy-text",
+      "provider": "google",
+      "api": "google-generative-ai",
+      "transport": "arcamage-proxy",
+      "baseUrl": "https://generativelanguage.googleapis.com",
+      "apiKeyEnv": "GOOGLE_API_KEY",
+      "model": "REPLACE_WITH_GOOGLE_MODEL",
+      "prompt": "Reply with: arcamage-smoke-ok",
+      "expectText": "arcamage-smoke-ok"
+    },
+    {
+      "name": "google-proxy-tool-round",
+      "provider": "google",
+      "api": "google-generative-ai",
+      "transport": "arcamage-proxy",
+      "baseUrl": "https://generativelanguage.googleapis.com",
+      "apiKeyEnv": "GOOGLE_API_KEY",
+      "model": "REPLACE_WITH_GOOGLE_MODEL",
+      "toolRound": true
+    },
+    {
+      "name": "mistral-proxy-text",
+      "provider": "mistral",
+      "api": "mistral-conversations",
+      "transport": "arcamage-proxy",
+      "baseUrl": "https://api.mistral.ai",
+      "apiKeyEnv": "MISTRAL_API_KEY",
+      "model": "REPLACE_WITH_MISTRAL_MODEL",
+      "prompt": "Reply with: arcamage-smoke-ok",
+      "expectText": "arcamage-smoke-ok"
+    },
+    {
+      "name": "mistral-proxy-tool-round",
+      "provider": "mistral",
+      "api": "mistral-conversations",
+      "transport": "arcamage-proxy",
+      "baseUrl": "https://api.mistral.ai",
+      "apiKeyEnv": "MISTRAL_API_KEY",
+      "model": "REPLACE_WITH_MISTRAL_MODEL",
+      "toolRound": true
+    }
+  ]
+}
