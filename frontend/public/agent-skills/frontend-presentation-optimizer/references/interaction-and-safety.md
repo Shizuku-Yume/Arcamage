@@ -21,7 +21,7 @@
 
 ## 交互件 2:标签切换(需要 JS 时)
 
-酒馆支持 `<script>`,但脚本要包在 IIFE 里、用 `data-*` 选择器、不污染全局。
+需要脚本交互时,脚本要包在 IIFE 里、用 `data-*` 选择器、不污染全局。
 
 ```html
 <div class="rp-tabs" data-tabs>

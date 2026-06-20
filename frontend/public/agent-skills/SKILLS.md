@@ -5,7 +5,7 @@ description: Local markdown-only skill catalog.
 
 - id: frontend-presentation-optimizer
   name: 卡面前端设计
-  description: 为开场白、状态面板与每轮回复设计贴合卡片主题的前端展示效果(HTML/CSS/JS,以酒馆渲染为准)。
+  description: 为开场白、状态面板与每轮回复设计贴合卡片主题的前端展示效果。
   path: frontend-presentation-optimizer/SKILL.md
   tags: [前端, 视觉, 排版, 状态栏, 状态面板, 开场白, 美化, css, html, javascript, presentation, ui]
 

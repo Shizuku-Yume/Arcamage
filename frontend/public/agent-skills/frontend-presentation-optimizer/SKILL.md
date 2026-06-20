@@ -1,6 +1,6 @@
 ---
 name: 卡面前端设计
-description: 为开场白、状态面板与每轮回复设计贴合卡片主题的前端展示效果(HTML/CSS/JS,以酒馆渲染为准)。
+description: 为开场白、状态面板与每轮回复设计贴合卡片主题的前端展示效果。
 references:
   - references/opening-visual-composer.md
   - references/status-panel-designer.md
@@ -10,11 +10,6 @@ references:
 ---
 
 本技能帮助你为角色卡设计「前端展示层」:开场白的视觉呈现、状态面板/状态栏界面、以及每轮回复的稳定排版。核心目标不是堆砌特效,而是让视觉服务于剧情代入,并且**贴合这张卡的主题**。
-
-## 渲染环境
-
-- **目标环境是 SillyTavern**:楼层支持完整的 HTML / CSS / `<style>` / `<script>` / 动画 / `<button>` 等交互元素。设计时以「在酒馆里能正常渲染」为准,不必自我设限。
-- 提示:Arcamage 应用内的预览面板用了更严格的清理规则(会过滤 `<script>`、`<button>` 等),所以预览里看到的效果可能比酒馆实际渲染更朴素。这只是预览差异,**不作为设计约束**——以酒馆为准。
 
 ## 何时使用
 
