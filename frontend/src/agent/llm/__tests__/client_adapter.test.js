@@ -377,7 +377,7 @@ describe('llm client adapter', () => {
         baseUrl: 'https://api.openai.com',
         apiKey: 'sk-openai-test',
         model: 'gpt-test',
-        maxTokens: 2048,
+        maxTokens: 4096,
         reasoning: true,
       },
       tools: [{ name: 'card_set_field', parameters: { type: 'object' } }],
@@ -402,7 +402,7 @@ describe('llm client adapter', () => {
         ],
         stream: false,
         store: false,
-        max_output_tokens: 2048,
+        max_output_tokens: 4096,
         temperature: 1,
         reasoning: { effort: 'medium', summary: 'auto' },
         include: ['reasoning.encrypted_content'],
@@ -722,7 +722,7 @@ describe('llm client adapter', () => {
         baseUrl: 'https://generativelanguage.googleapis.com',
         apiKey: 'google-key',
         model: 'gemini-test',
-        maxTokens: 2048,
+        maxTokens: 4096,
       },
       tools: [{ name: 'card_set_field', parameters: { type: 'object' } }],
       toolChoice: 'required',
@@ -740,7 +740,7 @@ describe('llm client adapter', () => {
       body: expect.objectContaining({
         systemInstruction: { parts: [{ text: 'System prompt' }] },
         contents: [{ role: 'user', parts: [{ text: 'hello' }] }],
-        generationConfig: { maxOutputTokens: 2048, temperature: 1 },
+        generationConfig: { maxOutputTokens: 4096, temperature: 1 },
         toolConfig: { functionCallingConfig: { mode: 'ANY' } },
         tools: [{
           functionDeclarations: [{
