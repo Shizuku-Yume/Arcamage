@@ -10,6 +10,7 @@
 
 import Alpine from 'alpinejs';
 import { deepClone } from '../store.js';
+import { confirm as confirmModal } from '../components/modal.js';
 
 // 生成唯一 ID
 let modalIdCounter = 0;
@@ -29,6 +30,7 @@ function generateModalId() {
  * @property {Object} draft - 草稿数据 (用于 Save/Cancel)
  * @property {boolean} dirty - 是否有未保存的更改
  * @property {Function} onSave - 保存回调
+ * @property {Function} onRequestSave - 保存请求回调，返回 false 时阻止关闭
  * @property {Function} onCancel - 取消回调
  * @property {boolean} closeable - 是否可关闭
  * @property {boolean} showHeader - 是否显示头部
@@ -77,6 +79,7 @@ export function initModalStackStore() {
         draft: config.draft !== undefined ? config.draft : deepClone(config.data || {}),
         dirty: false,
         onSave: config.onSave || null,
+        onRequestSave: config.onRequestSave || null,
         onCancel: config.onCancel || null,
         closeable: config.closeable !== false,
         showHeader: config.showHeader !== false,
@@ -241,35 +244,106 @@ export function initModalStackStore() {
     },
     
     /**
+     * 当前模态框是否存在未保存修改
+     * @param {ModalConfig|null} modal
+     * @returns {boolean}
+     */
+    hasUnsavedChanges(modal = this.current) {
+      return Boolean(modal?.dirty);
+    },
+
+    /**
+     * 确认是否保存后退出
+     * @returns {Promise<boolean>}
+     */
+    async confirmSaveBeforeExit() {
+      return confirmModal(
+        '有未保存的编辑内容',
+        '当前编辑内容尚未保存。是否保存后退出？',
+        {
+          type: 'warning',
+          confirmText: '保存后退出',
+          cancelText: '放弃编辑',
+        },
+      );
+    },
+
+    /**
+     * 请求关闭当前模态框
+     * @param {Object} options
+     * @param {boolean} options.save - 是否直接保存并关闭
+     * @returns {Promise<ModalConfig|null>}
+     */
+    async requestClose(options = {}) {
+      if (this.stack.length === 0) return null;
+
+      const current = this.current;
+      if (!current.closeable) return null;
+
+      if (options.save) {
+        return this.commitAndClose(current);
+      }
+
+      if (!this.hasUnsavedChanges(current)) {
+        return this.pop(false);
+      }
+
+      const shouldSave = await this.confirmSaveBeforeExit();
+      if (!shouldSave) {
+        if (this.current?.id !== current.id) return current;
+        return this.pop(false);
+      }
+
+      return this.commitAndClose(current);
+    },
+
+    /**
+     * 提交保存并关闭当前模态框
+     * @param {ModalConfig|null} modal
+     * @returns {Promise<ModalConfig|null>}
+     */
+    async commitAndClose(modal = this.current) {
+      if (!modal || this.current?.id !== modal.id) return null;
+
+      if (modal.onRequestSave) {
+        const result = await modal.onRequestSave(modal.draft, modal);
+        if (result === false) return null;
+        if (this.current?.id !== modal.id) return modal;
+        const onCancel = modal.onCancel;
+        modal.onCancel = null;
+        const closed = this.pop(false);
+        modal.onCancel = onCancel;
+        return closed;
+      }
+
+      return this.pop(true);
+    },
+
+    /**
      * 保存并关闭当前模态框
      */
     saveAndClose() {
-      this.pop(true);
+      return this.requestClose({ save: true });
     },
-    
+
     /**
      * 取消并关闭当前模态框
      */
     cancelAndClose() {
-      this.pop(false);
+      return this.requestClose({ save: false });
     },
-    
+
     /**
      * 处理 ESC 键
      */
     handleEscape() {
+      if (Alpine.store('modal')?.isOpen) return;
       if (this.stack.length === 0) return;
-      
+
       const current = this.current;
       if (!current.closeable) return;
-      
-      // 如果有未保存的更改，可以在这里添加确认逻辑
-      if (current.dirty) {
-        // 暂时直接关闭，后续可以添加确认弹窗
-        this.cancelAndClose();
-      } else {
-        this.cancelAndClose();
-      }
+
+      return this.cancelAndClose();
     },
     
     /**

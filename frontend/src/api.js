@@ -94,13 +94,17 @@ async function parseResponse(response) {
  */
 async function handleResponseError(response) {
   let errorData = null;
+  let errorPayload = null;
   let message = `请求失败: ${response.status}`;
   let code = ErrorCode.INTERNAL_ERROR;
 
   try {
     errorData = await response.json();
-    message = errorData.error || errorData.detail || message;
-    code = errorData.error_code || code;
+    errorPayload = typeof errorData?.detail === 'object' && !Array.isArray(errorData.detail)
+      ? errorData.detail
+      : errorData;
+    message = errorPayload?.error || (typeof errorPayload?.detail === 'string' ? errorPayload.detail : null) || message;
+    code = errorPayload?.error_code || code;
   } catch {
     // 无法解析 JSON，使用默认消息
   }
@@ -108,7 +112,7 @@ async function handleResponseError(response) {
   // 根据 HTTP 状态码映射错误码
   switch (response.status) {
     case 400:
-      code = errorData?.error_code || ErrorCode.VALIDATION_ERROR;
+      code = errorPayload?.error_code || ErrorCode.VALIDATION_ERROR;
       break;
     case 401:
       code = ErrorCode.UNAUTHORIZED;

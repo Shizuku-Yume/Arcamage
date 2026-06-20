@@ -251,6 +251,7 @@ export function agentModal() {
     hiddenPresetIds: [],
     presetLabel: '',
     presetPrompt: '',
+    presetEditorBaseline: null,
     confirmUndo: false,
     undoConfirmTimer: null,
     diffSearch: '',
@@ -258,25 +259,6 @@ export function agentModal() {
     diffInlineCache: new Map(),
     diffScrollTopByKey: new Map(),
     openActivityTraceIds: {},
-    skillManagerOpen: false,
-    skillManagerBusy: false,
-    skillManagerSaving: false,
-    skillTransferBusy: false,
-    skillManagerError: '',
-    skillManagerSelectedId: '',
-    skillManagerNewMode: false,
-    skillDeleteConfirmOpen: false,
-    skillDeleteConfirmName: '',
-    skillValidationDialogOpen: false,
-    skillValidationMessage: '',
-    skillReferencePanelOpen: false,
-    skillReferenceSelectedIndex: -1,
-    skillReferenceManagerOpen: false,
-    skillReferenceEditorDrafts: [],
-    skillReferenceSaving: false,
-    skillReferenceDeleteConfirmOpen: false,
-    skillReferenceDeleteConfirmName: '',
-    skillReferenceDeleteConfirmIndex: -1,
     skillEditorDraft: createEmptySkillEditorDraft(),
 
     get agent() {
@@ -289,12 +271,7 @@ export function agentModal() {
 
     get hasOverlayModalOpen() {
       return Boolean(
-        this.skillManagerOpen
-        || this.skillReferenceManagerOpen
-        || this.skillDeleteConfirmOpen
-        || this.skillReferenceDeleteConfirmOpen
-        || this.skillValidationDialogOpen
-        || this.presetEditorOpen
+        this.presetEditorOpen
         || this.presetDeleteOpen,
       );
     },
@@ -557,7 +534,7 @@ export function agentModal() {
 
     openSkillManagerFromMenu() {
       this.closeHeaderMenus();
-      this.openSkillManager();
+      this.openSkillManagerInStack();
     },
 
     toggleSkill(skillId) {
@@ -759,6 +736,17 @@ export function agentModal() {
       this.skillReferenceDeleteConfirmOpen = false;
       this.skillReferenceDeleteConfirmName = '';
       this.skillReferenceDeleteConfirmIndex = -1;
+    },
+
+    openSkillManagerInStack(preferredSkillId = '') {
+      Alpine.store('modalStack')?.push?.({
+        type: 'skill-manager',
+        size: 'xl',
+        title: '技能管理',
+        data: {
+          skillId: String(preferredSkillId || '').trim(),
+        },
+      });
     },
 
     async openSkillManager(preferredSkillId = '') {
@@ -1513,12 +1501,10 @@ export function agentModal() {
       });
       this.$watch('$store.agent.ui.openSkillManager', (open) => {
         if (!open) return;
-        this.openSkillManager()
-          .finally(() => {
-            if (this.agent?.ui) {
-              this.agent.ui.openSkillManager = false;
-            }
-          });
+        this.openSkillManagerInStack();
+        if (this.agent?.ui) {
+          this.agent.ui.openSkillManager = false;
+        }
       });
       this.$watch('$store.settings.skillsEnabled', () => {
         this.syncSkillFeatureState();
@@ -1527,12 +1513,8 @@ export function agentModal() {
         this.updatePageScrollLock(true);
       }
       if (this.agent?.ui?.openSkillManager) {
-        this.openSkillManager()
-          .finally(() => {
-            if (this.agent?.ui) {
-              this.agent.ui.openSkillManager = false;
-            }
-          });
+        this.openSkillManagerInStack();
+        this.agent.ui.openSkillManager = false;
       }
       this.$nextTick(() => {
         this.restoreChatScrollTopFromStore();
@@ -2693,11 +2675,35 @@ export function agentModal() {
         this.presetLabel = '';
         this.presetPrompt = '';
       }
+      this.presetEditorBaseline = {
+        label: this.presetLabel,
+        prompt: this.presetPrompt,
+      };
       this.presetEditorOpen = true;
+    },
+
+    isPresetEditorDirty() {
+      if (!this.presetEditorOpen || !this.presetEditorBaseline) return false;
+      return this.presetLabel !== this.presetEditorBaseline.label
+        || this.presetPrompt !== this.presetEditorBaseline.prompt;
     },
 
     closePresetEditor() {
       this.presetEditorOpen = false;
+      this.presetEditorBaseline = null;
+    },
+
+    async requestClosePresetEditor() {
+      if (!this.isPresetEditorDirty()) {
+        this.closePresetEditor();
+        return;
+      }
+      const shouldSave = await Alpine.store('modalStack')?.confirmSaveBeforeExit?.();
+      if (!shouldSave) {
+        this.closePresetEditor();
+        return;
+      }
+      this.savePreset();
     },
 
     savePreset() {
@@ -2726,7 +2732,7 @@ export function agentModal() {
       });
       this.presetLabel = '';
       this.presetPrompt = '';
-      this.presetEditorOpen = false;
+      this.closePresetEditor();
     },
 
     confirmDeletePreset(preset) {
@@ -2931,19 +2937,19 @@ export function getAgentModalHTML() {
                           <div class="space-y-2.5 max-h-64 overflow-y-auto overflow-x-hidden custom-scrollbar">
                             <template x-for="skill in skillCatalog" :key="skill.id">
                               <button @click="toggleSkill(skill.id)"
-                                      class="w-full flex items-center gap-3 rounded-neo border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-3.5 py-2.5 text-left">
+                                      class="w-full flex items-center gap-3 rounded-neo border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-3.5 py-3 text-left">
                                 <span class="flex-1 min-w-0">
                                   <span class="flex items-center gap-1.5 min-w-0">
-                                    <span class="text-[13px] font-semibold text-zinc-700 dark:text-zinc-200 truncate" x-text="skill.id"></span>
+                                    <span class="text-[13px] font-semibold text-zinc-700 dark:text-zinc-200 truncate" x-text="skill.name || skill.id"></span>
                                     <span x-show="isSkillAutoMatched(skill.id)"
                                           class="shrink-0 text-[10px] px-1.5 py-0.5 rounded-neo bg-warning-light text-warning dark:bg-warning-dark dark:text-warning-light">自动</span>
                                   </span>
                                   <span class="block text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 truncate" x-text="skill.description"></span>
                                 </span>
-                                <span class="shrink-0 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium border transition-colors"
+                                <span class="pill-toggle shrink-0 gap-1.5 px-3 py-1.5 text-xs font-medium"
                                       :class="isSkillSelected(skill.id)
-                                        ? 'bg-brand-50 text-brand-700 border-brand-200 dark:bg-zinc-800 dark:text-zinc-200 dark:border-zinc-600'
-                                        : 'bg-zinc-100 text-zinc-500 border-zinc-200 dark:bg-zinc-700 dark:text-zinc-300 dark:border-zinc-600'">
+                                        ? 'pill-toggle-active'
+                                        : 'pill-toggle-inactive'">
                                   <span class="h-1.5 w-1.5 rounded-full"
                                         :class="isSkillSelected(skill.id)
                                           ? 'bg-brand-600 dark:bg-brand-400'
@@ -3336,7 +3342,7 @@ export function getAgentModalHTML() {
                           </svg>
                         </span>
                         <div>
-                          <h3 class="text-lg font-bold tracking-tight text-zinc-900 dark:text-zinc-50">技能工坊</h3>
+                          <h3 class="text-lg font-bold tracking-tight text-zinc-900 dark:text-zinc-50">技能管理</h3>
                           <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">管理本地浏览器技能，编辑描述、正文与参考资料</p>
                         </div>
                       </div>
@@ -3384,7 +3390,7 @@ export function getAgentModalHTML() {
                               x-text="skillTransferBusy ? '处理中...' : '导出'"></button>
                       <button @click="closeSkillManager()"
                               class="btn-icon-ghost h-9 w-9 bg-white/80 dark:bg-zinc-900/80"
-                              title="关闭技能工坊">
+                              title="关闭技能管理">
                         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4">
                           <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
                         </svg>
@@ -3788,11 +3794,11 @@ export function getAgentModalHTML() {
               </div>
             </div>
             <div x-show="presetEditorOpen" x-cloak class="fixed inset-0 z-80 flex items-center justify-center px-4 sm:px-6">
-              <div class="absolute inset-0 bg-zinc-900/40" @click="closePresetEditor()"></div>
+              <div class="absolute inset-0 bg-zinc-900/50 dark:bg-zinc-950/70 backdrop-blur-sm" @click="requestClosePresetEditor()"></div>
               <div class="relative w-full max-w-4xl rounded-neo border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 shadow-neo-lift dark:shadow-neo-lift-dark overflow-hidden">
                 <div class="flex items-center justify-between px-4 py-3 border-b border-zinc-100 dark:border-zinc-800 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-sm select-none">
                   <div class="flex items-center min-w-[80px]">
-                    <button @click="closePresetEditor()"
+                    <button @click="requestClosePresetEditor()"
                             class="group btn-secondary gap-1.5 px-3 py-1.5 text-xs font-medium"
                             title="取消">
                       <svg class="w-3.5 h-3.5 transition-transform group-hover:-translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">

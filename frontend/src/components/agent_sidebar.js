@@ -41,6 +41,7 @@ export function agentSidebar() {
     hiddenPresetIds: [],
     presetLabel: '',
     presetPrompt: '',
+    presetEditorBaseline: null,
     confirmUndo: false,
     undoConfirmTimer: null,
     openActivityTraceIds: {},
@@ -291,8 +292,11 @@ export function agentSidebar() {
     },
 
     openSkillManagerInFullscreen() {
-      if (!this.agent?.ui) return;
-      this.agent.ui.openSkillManager = true;
+      Alpine.store('modalStack').push({
+        type: 'skill-manager',
+        size: 'xl',
+        title: '技能管理'
+      });
     },
 
     async openSkillCatalogFile() {
@@ -700,11 +704,35 @@ export function agentSidebar() {
         this.presetLabel = '';
         this.presetPrompt = '';
       }
+      this.presetEditorBaseline = {
+        label: this.presetLabel,
+        prompt: this.presetPrompt,
+      };
       this.presetEditorOpen = true;
+    },
+
+    isPresetEditorDirty() {
+      if (!this.presetEditorOpen || !this.presetEditorBaseline) return false;
+      return this.presetLabel !== this.presetEditorBaseline.label
+        || this.presetPrompt !== this.presetEditorBaseline.prompt;
     },
 
     closePresetEditor() {
       this.presetEditorOpen = false;
+      this.presetEditorBaseline = null;
+    },
+
+    async requestClosePresetEditor() {
+      if (!this.isPresetEditorDirty()) {
+        this.closePresetEditor();
+        return;
+      }
+      const shouldSave = await Alpine.store('modalStack')?.confirmSaveBeforeExit?.();
+      if (!shouldSave) {
+        this.closePresetEditor();
+        return;
+      }
+      this.savePreset();
     },
 
     savePreset() {
@@ -733,7 +761,7 @@ export function agentSidebar() {
       });
       this.presetLabel = '';
       this.presetPrompt = '';
-      this.presetEditorOpen = false;
+      this.closePresetEditor();
     },
 
     confirmDeletePreset(preset) {

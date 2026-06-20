@@ -35,6 +35,32 @@ describe('settings modal supplier logic', () => {
     mocks.requestAssistantTurn.mockReset();
   });
 
+  it('loads updated agent setting defaults from the store', () => {
+    const modal = settingsModal();
+    modal.loadFromStores();
+
+    expect(modal.agentShowActivityTrace).toBe(true);
+    expect(modal.agentToolCallLimit).toBe(100);
+    expect(modal.agentToolCallLimitInput).toBe('100');
+    expect(modal.agentMaxValueChars).toBe(160000);
+    expect(modal.agentMaxValueCharsInput).toBe('160000');
+  });
+
+  it('clamps agent tool call limit to the updated range', () => {
+    const modal = settingsModal();
+    modal.loadFromStores();
+
+    modal.agentToolCallLimitInput = '350';
+    modal.commitAgentAdvancedInputs();
+    expect(modal.agentToolCallLimit).toBe(300);
+    expect(modal.agentToolCallLimitInput).toBe('300');
+
+    modal.agentToolCallLimitInput = '3';
+    modal.commitAgentAdvancedInputs();
+    expect(modal.agentToolCallLimit).toBe(10);
+    expect(modal.agentToolCallLimitInput).toBe('10');
+  });
+
   it('loads supplier settings and saves back to store', async () => {
     const modal = settingsModal();
     modal.loadFromStores();
@@ -230,6 +256,59 @@ describe('settings modal supplier logic', () => {
     expect(Alpine.store('suppliers').getCurrentProvider()?.availableModels).toEqual([{ id: 'fresh-model' }]);
   });
 
+  it('persists manual models as a fallback until fetch succeeds', async () => {
+    const modal = settingsModal();
+    modal.loadFromStores();
+
+    modal.manualModelInput = ' manual-model ';
+    modal.addManualModel();
+
+    expect(modal.availableModels).toEqual([{ id: 'manual-model' }]);
+    expect(modal.selectedModel).toBe('manual-model');
+    expect(modal.manualModelInput).toBe('');
+    expect(Alpine.store('suppliers').getCurrentProvider()?.availableModels).toEqual([{ id: 'manual-model' }]);
+
+    modal.apiUrl = 'https://api.example.com';
+    modal.apiKey = 'sk-test';
+    mocks.getSupplierModels.mockRejectedValue(new Error('network down'));
+
+    await modal.loadModels();
+
+    expect(modal.availableModels).toEqual([{ id: 'manual-model' }]);
+    expect(Alpine.store('suppliers').getCurrentProvider()?.availableModels).toEqual([{ id: 'manual-model' }]);
+
+    mocks.getSupplierModels.mockResolvedValue([{ id: 'fresh-model' }]);
+
+    await modal.loadModels();
+
+    expect(modal.availableModels).toEqual([{ id: 'fresh-model' }]);
+    expect(modal.selectedModel).toBe('fresh-model');
+    expect(Alpine.store('suppliers').getCurrentProvider()?.availableModels).toEqual([{ id: 'fresh-model' }]);
+  });
+
+  it('edits and deletes models from the cached supplier list', () => {
+    const modal = settingsModal();
+    modal.loadFromStores();
+    modal.availableModels = [{ id: 'model-a' }, { id: 'model-b' }];
+    modal.selectedModel = 'model-a';
+    modal.persistSupplierDraft();
+
+    modal.startEditModel('model-a');
+    modal.editingModelInput = 'model-c';
+    modal.saveEditedModel('model-a');
+
+    expect(modal.availableModels).toEqual([{ id: 'model-c' }, { id: 'model-b' }]);
+    expect(modal.selectedModel).toBe('model-c');
+    expect(modal.editingModelId).toBe('');
+    expect(Alpine.store('suppliers').getCurrentProvider()?.availableModels).toEqual([{ id: 'model-c' }, { id: 'model-b' }]);
+
+    modal.deleteModel('model-c');
+
+    expect(modal.availableModels).toEqual([{ id: 'model-b' }]);
+    expect(modal.selectedModel).toBe('model-b');
+    expect(Alpine.store('suppliers').getCurrentProvider()?.availableModels).toEqual([{ id: 'model-b' }]);
+  });
+
   it('tests the selected model with an assistant message', async () => {
     const modal = settingsModal();
     modal.loadFromStores();
@@ -260,6 +339,58 @@ describe('settings modal supplier logic', () => {
     expect(modal.connectionMessage).toContain('连接成功');
   });
 
+
+  it('previews accent changes without persisting until settings are saved', async () => {
+    const settings = Alpine.store('settings');
+    settings.setAccent('teal');
+    const originalAccentStorage = localStorage.getItem('arcamage_accent');
+    const modalConfig = { dirty: false };
+    const modal = settingsModal();
+    modal.loadFromStores();
+    modal.bindModal(modalConfig);
+
+    modal.selectPreset('fuji');
+
+    expect(settings.accentColor).toBe('teal');
+    expect(localStorage.getItem('arcamage_accent')).toBe(originalAccentStorage);
+    expect(modalConfig.dirty).toBe(true);
+
+    await modal.saveSettings();
+
+    expect(settings.accentColor).toBe('fuji');
+    expect(JSON.parse(localStorage.getItem('arcamage_accent')).colorId).toBe('fuji');
+    expect(modalConfig.dirty).toBe(false);
+  });
+
+  it('does not shadow the outer modal config when binding save handlers', () => {
+    const modalConfig = { dirty: false };
+    const modal = settingsModal();
+    modal.loadFromStores();
+
+    expect(Object.prototype.hasOwnProperty.call(modal, 'modal')).toBe(false);
+
+    modal.bindModal(modalConfig);
+    modal.autoSaveEnabled = false;
+    modal.syncModalDirty();
+
+    expect(typeof modalConfig.onRequestSave).toBe('function');
+    expect(typeof modalConfig.onCancel).toBe('function');
+    expect(modalConfig.dirty).toBe(true);
+  });
+
+  it('restores the opening accent when settings are canceled', () => {
+    const settings = Alpine.store('settings');
+    settings.setAccent('teal');
+    const modal = settingsModal();
+    modal.loadFromStores();
+    modal.bindModal({ dirty: false });
+
+    modal.selectPreset('fuji');
+    modal.restoreOriginalAccent();
+
+    expect(settings.accentColor).toBe('teal');
+    expect(JSON.parse(localStorage.getItem('arcamage_accent')).colorId).toBe('teal');
+  });
 
   it('calculates localStorage usage and key count', () => {
     localStorage.setItem('foo', 'bar');

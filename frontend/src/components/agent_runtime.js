@@ -52,7 +52,7 @@ const SKILL_TOOL_SYSTEM_PROMPT = `当技能工具可用时，你可以直接管�
 - references 输入仅使用 [{ name, content }]，路径由系统映射为 references/<name>.md
 - 仅允许本地仓库 markdown 内容，不可使用远程 URL 或路径穿越`; 
 
-const TOOL_CALL_LIMIT = 50;
+const TOOL_CALL_LIMIT = 100;
 const TOOL_WRITE_LIMIT = TOOL_LIMITS.MAX_PATCH_CHARS;
 const TOOL_WRITE_WARNING_RATIO = 0.9;
 const TOOL_CONSECUTIVE_ERROR_LIMIT = 10;

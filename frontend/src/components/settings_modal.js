@@ -1,6 +1,12 @@
 
 import Alpine from 'alpinejs';
-import { ACCENT_PRESETS, isValidHex, normalizeHex } from '../utils/accent_colors.js';
+import {
+  ACCENT_PRESETS,
+  applyAccentToDOM,
+  getAccentShades,
+  isValidHex,
+  normalizeHex,
+} from '../utils/accent_colors.js';
 import { getSupplierModels } from '../api.js';
 import { requestAssistantTurn } from '../agent/llm/client.js';
 import {
@@ -190,12 +196,12 @@ export function settingsModal() {
     autoSaveIntervalInput: '30',
     includeV2Compat: true,
 
-    agentShowActivityTrace: false,
+    agentShowActivityTrace: true,
     skillsEnabled: true,
-    agentToolCallLimit: 50,
-    agentToolCallLimitInput: '50',
-    agentMaxValueChars: 80000,
-    agentMaxValueCharsInput: '80000',
+    agentToolCallLimit: 100,
+    agentToolCallLimitInput: '100',
+    agentMaxValueChars: 160000,
+    agentMaxValueCharsInput: '160000',
     agentSkillAutoMatchLimit: 3,
     agentSkillAutoMatchLimitInput: '3',
     agentDiffLayout: 'split',
@@ -220,6 +226,9 @@ export function settingsModal() {
     temperatureInput: '1.0',
     availableModels: [],
     modelFilter: '',
+    manualModelInput: '',
+    editingModelId: '',
+    editingModelInput: '',
     connectionStatus: null,
     modelsStatus: null,
     connectionMessage: '',
@@ -266,6 +275,61 @@ export function settingsModal() {
       this.syncCurrentProviderToList();
     },
 
+    addManualModel() {
+      const model = normalizeSupplierModels([this.manualModelInput])[0];
+      if (!model) {
+        Alpine.store('toast').error('请输入模型名称');
+        return;
+      }
+
+      this.availableModels = normalizeSupplierModels([...this.availableModels, model]);
+      this.selectedModel = model.id;
+      this.manualModelInput = '';
+      this.modelFilter = '';
+      this.persistSupplierDraft();
+      Alpine.store('toast').success('已添加手动模型');
+    },
+
+    startEditModel(modelId) {
+      this.editingModelId = modelId;
+      this.editingModelInput = modelId;
+    },
+
+    cancelEditModel() {
+      this.editingModelId = '';
+      this.editingModelInput = '';
+    },
+
+    saveEditedModel(originalModelId) {
+      const model = normalizeSupplierModels([this.editingModelInput])[0];
+      if (!model) {
+        Alpine.store('toast').error('请输入模型名称');
+        return;
+      }
+
+      this.availableModels = normalizeSupplierModels(
+        this.availableModels.map((item) => (item.id === originalModelId ? { ...item, id: model.id } : item)),
+      );
+      if (this.selectedModel === originalModelId) {
+        this.selectedModel = model.id;
+      }
+      this.cancelEditModel();
+      this.persistSupplierDraft();
+      Alpine.store('toast').success('模型 ID 已更新');
+    },
+
+    deleteModel(modelId) {
+      this.availableModels = this.availableModels.filter((model) => model.id !== modelId);
+      if (this.selectedModel === modelId) {
+        this.selectedModel = this.availableModels[0]?.id || '';
+      }
+      if (this.editingModelId === modelId) {
+        this.cancelEditModel();
+      }
+      this.persistSupplierDraft();
+      Alpine.store('toast').success('模型已删除');
+    },
+
     providers: [],
     currentProviderId: null,
     editingProviderName: false,
@@ -283,11 +347,79 @@ export function settingsModal() {
 
     localStorageUsageBytes: 0,
     localStorageKeyCount: 0,
-    
+    boundModal: null,
+    settingsBaseline: '',
+    originalAccent: null,
+
     init() {
       this.loadFromStores();
+      this.captureSettingsBaseline();
     },
-    
+
+    bindModal(modalConfig) {
+      this.boundModal = modalConfig;
+      this.captureSettingsBaseline();
+      if (this.boundModal) {
+        this.boundModal.onRequestSave = () => this.saveSettings({ closeAfterSave: true });
+        this.boundModal.onCancel = () => this.restoreOriginalAccent();
+      }
+      this.syncModalDirty();
+    },
+
+    get settingsSnapshot() {
+      return JSON.stringify({
+        autoSaveEnabled: this.autoSaveEnabled,
+        autoSaveIntervalInput: String(this.autoSaveIntervalInput || ''),
+        includeV2Compat: this.includeV2Compat,
+        agentShowActivityTrace: this.agentShowActivityTrace,
+        skillsEnabled: this.skillsEnabled,
+        agentToolCallLimitInput: String(this.agentToolCallLimitInput || ''),
+        agentMaxValueCharsInput: String(this.agentMaxValueCharsInput || ''),
+        agentSkillAutoMatchLimitInput: String(this.agentSkillAutoMatchLimitInput || ''),
+        agentDiffLayout: this.agentDiffLayout,
+        agentDiffWrap: this.agentDiffWrap,
+        agentDiffFold: this.agentDiffFold,
+        selectedAccent: this.selectedAccent,
+        customHex: this.customHex,
+        providers: this.providers,
+        currentProviderId: this.currentProviderId,
+      });
+    },
+
+    captureSettingsBaseline() {
+      const settings = Alpine.store('settings');
+      this.originalAccent = {
+        colorId: settings?.accentColor || 'teal',
+        customHex: settings?.customAccentHex || '',
+        storageValue: localStorage.getItem('arcamage_accent'),
+      };
+      this.settingsBaseline = this.settingsSnapshot;
+      this.syncModalDirty();
+    },
+
+    syncModalDirty() {
+      if (this.boundModal) {
+        this.boundModal.dirty = Boolean(this.settingsBaseline) && this.settingsSnapshot !== this.settingsBaseline;
+      }
+    },
+
+    previewAccent(colorId = this.selectedAccent, customHex = this.customHex) {
+      applyAccentToDOM(getAccentShades(colorId, customHex));
+    },
+
+    restoreOriginalAccent() {
+      if (!this.originalAccent) return;
+      const settings = Alpine.store('settings');
+      settings.accentColor = this.originalAccent.colorId;
+      settings.customAccentHex = this.originalAccent.customHex;
+      if (this.originalAccent.storageValue === null) {
+        localStorage.removeItem('arcamage_accent');
+      } else {
+        localStorage.setItem('arcamage_accent', this.originalAccent.storageValue);
+      }
+      settings.applyAccent();
+    },
+
     loadFromStores() {
       const settings = Alpine.store('settings');
       const suppliers = Alpine.store('suppliers');
@@ -297,12 +429,12 @@ export function settingsModal() {
       this.autoSaveIntervalInput = String(settings.autoSaveInterval ?? 30);
       this.includeV2Compat = settings.includeV2Compat;
       
-      this.agentShowActivityTrace = settings.agentShowActivityTrace ?? false;
+      this.agentShowActivityTrace = settings.agentShowActivityTrace ?? true;
       this.skillsEnabled = settings.skillsEnabled ?? true;
-      this.agentToolCallLimit = settings.agentToolCallLimit ?? 50;
-      this.agentToolCallLimitInput = String(settings.agentToolCallLimit ?? 50);
-      this.agentMaxValueChars = settings.agentMaxValueChars ?? 80000;
-      this.agentMaxValueCharsInput = String(settings.agentMaxValueChars ?? 80000);
+      this.agentToolCallLimit = settings.agentToolCallLimit ?? 100;
+      this.agentToolCallLimitInput = String(settings.agentToolCallLimit ?? 100);
+      this.agentMaxValueChars = settings.agentMaxValueChars ?? 160000;
+      this.agentMaxValueCharsInput = String(settings.agentMaxValueChars ?? 160000);
       this.agentSkillAutoMatchLimit = settings.agentSkillAutoMatchLimit ?? 3;
       this.agentSkillAutoMatchLimitInput = String(settings.agentSkillAutoMatchLimit ?? 3);
       this.agentDiffLayout = settings.agentDiffLayout ?? 'split';
@@ -330,7 +462,8 @@ export function settingsModal() {
       this.selectedAccent = presetId;
       this.customHex = '';
       this.customHexError = '';
-      Alpine.store('settings').setAccent(presetId);
+      this.previewAccent(presetId, '');
+      this.syncModalDirty();
     },
     
     get customColorPickerValue() {
@@ -398,7 +531,8 @@ export function settingsModal() {
       } else {
         this.customRgb = hexToRgb(normalized);
       }
-      Alpine.store('settings').setAccent('custom', normalized);
+      this.previewAccent('custom', normalized);
+      this.syncModalDirty();
     },
 
     applyCustomPickerColor() {
@@ -574,12 +708,12 @@ export function settingsModal() {
       }));
     },
 
-    async saveSettings() {
+    async saveSettings(_options = {}) {
       this.commitAutoSaveInterval();
       this.commitAgentAdvancedInputs();
       if (!this.syncCurrentProviderToList()) {
         Alpine.store('toast').error('供应商高级配置格式有误');
-        return;
+        return false;
       }
 
       const settings = Alpine.store('settings');
@@ -590,7 +724,7 @@ export function settingsModal() {
         if (!isValidHex(normalized)) {
           this.customHexError = '请输入有效的十六进制颜色码 (#RRGGBB)';
           toast.error('请输入有效的自定义强调色');
-          return;
+          return false;
         }
         this.customHex = normalized;
       }
@@ -613,8 +747,8 @@ export function settingsModal() {
       settings.applyAgentDiffSettings();
 
       toast.success('设置已保存');
-
-      Alpine.store('modalStack').pop();
+      this.captureSettingsBaseline();
+      return true;
     },
 
     buildSupplierRequestConfig(overrides = {}) {
@@ -708,7 +842,7 @@ export function settingsModal() {
         const models = normalizeSupplierModels(await getSupplierModels(supplier));
         this.availableModels = models;
 
-        if (!this.selectedModel && models.length > 0) {
+        if (models.length > 0 && !models.some((model) => model.id === this.selectedModel)) {
           this.selectedModel = models[0].id;
         }
         this.syncCurrentProviderToList();
@@ -746,7 +880,7 @@ export function settingsModal() {
     commitAgentAdvancedInputs() {
       const toolLimit = Number(this.agentToolCallLimitInput);
       if (Number.isFinite(toolLimit)) {
-        this.agentToolCallLimit = Math.min(200, Math.max(10, Math.round(toolLimit)));
+        this.agentToolCallLimit = Math.min(300, Math.max(10, Math.round(toolLimit)));
       }
       this.agentToolCallLimitInput = String(this.agentToolCallLimit);
 
@@ -800,6 +934,7 @@ export function settingsModal() {
       this.temperature = this.normalizeTemperature(normalized.temperature);
       this.temperatureInput = this.temperature.toFixed(1);
       this.availableModels = normalizeSupplierModels(normalized.availableModels);
+      this.manualModelInput = '';
     },
 
     changeSupplierApi(value = this.supplierApi) {

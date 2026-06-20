@@ -48,12 +48,29 @@ describe('skill_manager', () => {
     expect(catalog.error).toBeNull();
     expect(catalog.catalog).toHaveLength(1);
     expect(catalog.catalog[0].id).toBe('Demo');
+    expect(catalog.catalog[0].name).toBe('Demo');
 
     const bundle = await loadSkillBundle('Demo');
     expect(bundle.error).toBeNull();
     expect(bundle.skill?.name).toBe('Demo');
     expect(bundle.references).toHaveLength(1);
     expect(bundle.references[0].path).toBe('Demo/references/a.md');
+  });
+
+  it('uses skill frontmatter name in catalog entries', async () => {
+    const fetcher = createMockFetcher({
+      '/agent-skills/SKILLS.md': `- id: Demo\n  description: Catalog desc\n  path: Demo/SKILL.md`,
+      '/agent-skills/Demo/SKILL.md': `---\nname: 显示名称\ndescription: Skill desc\nreferences: []\n---\n\nBody`,
+    });
+    setSkillFetcher(fetcher);
+
+    const catalog = await loadSkillCatalog({ forceRefresh: true });
+
+    expect(catalog.catalog[0]).toMatchObject({
+      id: 'Demo',
+      name: '显示名称',
+      description: 'Skill desc',
+    });
   });
 
   it('rejects invalid reference paths and keeps flow alive', async () => {

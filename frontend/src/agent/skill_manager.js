@@ -372,6 +372,7 @@ function cloneRepositoryState(state) {
   const catalog = Array.isArray(state.catalog)
     ? state.catalog.map((entry) => ({
       id: String(entry.id || ''),
+      name: String(entry.name || ''),
       description: String(entry.description || ''),
       path: String(entry.path || ''),
       tags: Array.isArray(entry.tags) ? [...entry.tags] : [],
@@ -419,6 +420,7 @@ references:
 function normalizeCatalogEntry(entry) {
   const item = entry && typeof entry === 'object' ? entry : {};
   const id = normalizeSkillId(item.id);
+  const name = String(item.name || '').trim();
   const description = String(item.description || '').trim();
   const path = normalizeCatalogSkillPath(item.path || `${id}/SKILL.md`);
   const tags = Array.isArray(item.tags)
@@ -431,6 +433,7 @@ function normalizeCatalogEntry(entry) {
 
   return {
     id,
+    name,
     description,
     path,
     tags,
@@ -635,6 +638,11 @@ async function bootstrapRepositoryFromStatic() {
         state.files[entry.path] = skillFile.text;
 
         const parsedSkill = parseSkillDocument(skillFile.text);
+        state.catalog[index] = {
+          ...entry,
+          name: parsedSkill.name || entry.name || entry.id,
+          description: parsedSkill.description || entry.description,
+        };
         const refs = Array.isArray(parsedSkill.references) ? parsedSkill.references : [];
         for (let refIndex = 0; refIndex < refs.length; refIndex += 1) {
           const rawRef = refs[refIndex];

@@ -17,7 +17,7 @@ import {
 } from './value_utils.js';
 import { getToolDefinitions, TOOL_ARG_WHITELIST } from './tool_contracts.js';
 
-const MAX_VALUE_CHARS = 80000;
+const MAX_VALUE_CHARS = 160000;
 const MAX_PATCH_CHARS = 1024 * 1024;
 const SIZE_WARNING_RATIO = 0.9;
 

@@ -57,6 +57,7 @@ import { registerTextFieldModalComponent } from './components/field_editors/text
 import { registerArrayFieldModalComponent } from './components/field_editors/array_field_modal.js';
 import { registerTagsFieldModalComponent } from './components/field_editors/tags_field_modal.js';
 import { registerSettingsModalComponent } from './components/settings_modal.js';
+import { registerSkillManagerModalComponent } from './components/skill_manager_modal.js';
 import { registerFerryModalComponent, getFerryModalHTML } from './components/ferry_modal.js';
 import { registerFerryBatchComponent } from './components/ferry_batch.js';
 import { registerFerryStagingComponent } from './components/ferry_staging.js';
@@ -111,6 +112,7 @@ registerTextFieldModalComponent();
 registerArrayFieldModalComponent();
 registerTagsFieldModalComponent();
 registerSettingsModalComponent();
+registerSkillManagerModalComponent();
 registerFerryModalComponent();
 registerFerryBatchComponent();
 registerFerryStagingComponent();

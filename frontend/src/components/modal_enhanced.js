@@ -3,6 +3,7 @@ import { getArrayEditorHTML } from './array_editor.js';
 import { getFerryBatchHTML } from './ferry_batch.js';
 import { getFerryStagingHTML } from './ferry_staging.js';
 import { getRangeControlHTML } from './range_control.js';
+import { getSkillManagerModalHTML } from './skill_manager_modal.js';
 
 export function modalEnhanced() {
   return {
@@ -59,7 +60,11 @@ export function modalEnhanced() {
       });
     },
 
-    handleSave(_modal) {
+    handleSave(modal) {
+      if (modal?.type === 'skill-manager' || modal?.onRequestSave) {
+        Alpine.store('modalStack').saveAndClose();
+        return;
+      }
       Alpine.store('modalStack').pop(true);
     },
 
@@ -165,7 +170,7 @@ export function getModalEnhancedHTML() {
               <div class="flex items-center justify-end min-w-[80px]">
                 <!-- Settings modal save button -->
                 <button x-show="modal.type === 'settings'"
-                        @click="$dispatch('settings-save')"
+                        @click="$store.modalStack.saveAndClose()"
                         class="group btn-primary gap-1.5 px-3.5 py-1.5 text-xs font-bold">
                   <span>保存</span>
                   <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
@@ -203,7 +208,7 @@ export function getModalEnhancedHTML() {
                                   el.style.overflowY = scrollHeight > targetHeight ? 'auto' : 'hidden';
                                 }
                               })"
-                              @input="$nextTick(() => { 
+                              @input="modal.dirty = true; $nextTick(() => {
                                 const el = $refs.textareaAutosize;
                                 if (el) {
                                   el.style.height = 'auto';
@@ -833,8 +838,14 @@ export function getModalEnhancedHTML() {
                 </div>
               </template>
 
+              <template x-if="modal.type === 'skill-manager'">
+                <div class="flex flex-col h-[min(74dvh,760px)] min-h-[320px] sm:min-h-[400px]" x-data="skillManagerModal(modal)">
+                  ${getSkillManagerModalHTML()}
+                </div>
+              </template>
+
               <template x-if="modal.type === 'settings'">
-                <div class="flex flex-col h-[min(74dvh,760px)] min-h-[320px] sm:min-h-[400px]" x-data="settingsModal()" @settings-save.window="saveSettings()">
+                <div class="flex flex-col h-[min(74dvh,760px)] min-h-[320px] sm:min-h-[400px]" x-data="settingsModal()" x-init="bindModal(modal)" x-effect="syncModalDirty()">
                   <!-- Tab Navigation (fixed height) -->
                   <div class="flex-shrink-0 flex border-b border-zinc-200 dark:border-zinc-700">
                     <button @click="setTab('editor')"
@@ -1094,33 +1105,50 @@ export function getModalEnhancedHTML() {
                       </button>
                     </div>
 
-                    <div class="flex flex-col sm:flex-row sm:items-center gap-3">
-                      <button @click="loadModels()"
-                              :disabled="!apiUrl || !apiKey || modelsStatus === 'loading' || connectionStatus === 'testing'"
-                              class="btn-primary px-4 py-2 text-sm font-medium flex items-center gap-2 justify-center w-full sm:w-auto">
-                        <span x-show="modelsStatus !== 'loading'">获取模型列表</span>
-                        <span x-show="modelsStatus === 'loading'" class="flex items-center gap-2">
-                          <span class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                          获取中...
-                        </span>
-                      </button>
+                    <div class="space-y-3">
+                      <div class="flex flex-col lg:flex-row lg:items-center gap-3">
+                        <div class="flex flex-col sm:flex-row gap-2 w-full lg:w-auto">
+                          <button @click="loadModels()"
+                                  :disabled="!apiUrl || !apiKey || modelsStatus === 'loading' || connectionStatus === 'testing'"
+                                  class="btn-primary px-4 py-2 text-sm font-medium flex items-center gap-2 justify-center w-full sm:w-auto">
+                            <span x-show="modelsStatus !== 'loading'">获取模型列表</span>
+                            <span x-show="modelsStatus === 'loading'" class="flex items-center gap-2">
+                              <span class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                              获取中...
+                            </span>
+                          </button>
 
-                      <div class="flex items-center gap-2 min-w-0 flex-1">
-                        <span :class="connectionStatus === 'success' ? 'bg-brand' : connectionStatus === 'error' ? 'bg-danger' : 'bg-zinc-300 dark:bg-zinc-600'"
-                              class="w-2.5 h-2.5 rounded-full flex-shrink-0"></span>
-                        <span class="text-sm truncate" :class="connectionStatus === 'success' ? 'text-brand-600 dark:text-brand-400' : connectionStatus === 'error' ? 'text-danger dark:text-danger-light' : 'text-zinc-500 dark:text-zinc-400'"
-                              x-text="connectionMessage || '未测试'"></span>
+                          <div class="flex min-w-0 flex-1 sm:w-[26rem]">
+                            <input type="text"
+                                   x-model="manualModelInput"
+                                   @keydown.enter.prevent="addManualModel()"
+                                   placeholder="手动添加模型 ID"
+                                   class="min-w-0 flex-1 px-3 py-2 bg-zinc-900/[0.03] dark:bg-zinc-950/35 border-2 border-r-0 border-zinc-200/80 dark:border-zinc-700/80 rounded-l-neo outline-none text-sm font-mono text-zinc-800 dark:text-zinc-100 focus:border-brand dark:focus:border-brand-400">
+                            <button type="button"
+                                    @click="addManualModel()"
+                                    class="btn-secondary px-3 py-2 text-sm font-medium rounded-l-none border-l-0 whitespace-nowrap">
+                              添加
+                            </button>
+                          </div>
+                        </div>
+
+                        <div class="flex items-center gap-2 min-w-0 flex-1">
+                          <span :class="connectionStatus === 'success' ? 'bg-brand' : connectionStatus === 'error' ? 'bg-danger' : 'bg-zinc-300 dark:bg-zinc-600'"
+                                class="w-2.5 h-2.5 rounded-full flex-shrink-0"></span>
+                          <span class="text-sm truncate" :class="connectionStatus === 'success' ? 'text-brand-600 dark:text-brand-400' : connectionStatus === 'error' ? 'text-danger dark:text-danger-light' : 'text-zinc-500 dark:text-zinc-400'"
+                                x-text="connectionMessage || '未测试'"></span>
+                        </div>
+
+                        <button @click="testConnection()"
+                                :disabled="!apiUrl || !apiKey || !selectedModel || connectionStatus === 'testing' || modelsStatus === 'loading'"
+                                class="btn-secondary px-4 py-2 text-sm font-medium flex items-center gap-2 justify-center w-full sm:w-auto lg:ml-auto">
+                          <span x-show="connectionStatus !== 'testing'">测试连接</span>
+                          <span x-show="connectionStatus === 'testing'" class="flex items-center gap-2">
+                            <span class="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
+                            测试中...
+                          </span>
+                        </button>
                       </div>
-
-                      <button @click="testConnection()"
-                              :disabled="!apiUrl || !apiKey || !selectedModel || connectionStatus === 'testing' || modelsStatus === 'loading'"
-                              class="btn-secondary px-4 py-2 text-sm font-medium flex items-center gap-2 justify-center w-full sm:w-auto sm:ml-auto">
-                        <span x-show="connectionStatus !== 'testing'">测试连接</span>
-                        <span x-show="connectionStatus === 'testing'" class="flex items-center gap-2">
-                          <span class="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
-                          测试中...
-                        </span>
-                      </button>
                     </div>
 
                     <div x-show="availableModels.length > 0 || selectedModel">
@@ -1141,11 +1169,55 @@ export function getModalEnhancedHTML() {
                               <div class="sticky top-0 z-10 px-2 py-1 text-[11px] font-semibold text-zinc-400 dark:text-zinc-500 bg-zinc-100/95 dark:bg-zinc-800/95" x-text="group.label"></div>
                               <div class="space-y-1 mt-1">
                                 <template x-for="model in group.models" :key="model.id">
-                                  <button type="button"
-                                          @click="selectModel(model.id)"
-                                          :class="selectedModel === model.id ? 'border-brand dark:border-brand-400 bg-brand-50/60 dark:bg-brand-900/25 text-brand-700 dark:text-brand-300' : 'border-transparent text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700/70'"
-                                          class="w-full px-2.5 py-2 rounded-neo border text-left text-sm font-mono truncate transition-colors"
-                                          x-text="model.id"></button>
+                                  <div class="group/model rounded-neo border transition-colors"
+                                       :class="selectedModel === model.id ? 'border-brand dark:border-brand-400 bg-brand-50/60 dark:bg-brand-900/25' : 'border-transparent hover:bg-zinc-100 dark:hover:bg-zinc-700/70'">
+                                    <template x-if="editingModelId !== model.id">
+                                      <div class="flex items-center gap-2">
+                                        <button type="button"
+                                                @click="selectModel(model.id)"
+                                                :class="selectedModel === model.id ? 'text-brand-700 dark:text-brand-300' : 'text-zinc-700 dark:text-zinc-200'"
+                                                class="min-w-0 flex-1 px-2.5 py-2 text-left text-sm font-mono truncate transition-colors"
+                                                x-text="model.id"></button>
+                                        <div class="flex items-center gap-1 pr-1 opacity-70 sm:opacity-0 sm:group-hover/model:opacity-100 transition-opacity">
+                                          <button type="button"
+                                                  @click.stop="startEditModel(model.id)"
+                                                  class="h-7 w-7 inline-flex items-center justify-center rounded-neo text-zinc-400 hover:text-brand dark:hover:text-brand-300 hover:bg-white/70 dark:hover:bg-zinc-900/60"
+                                                  title="修改模型 ID">
+                                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                              <path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                            </svg>
+                                          </button>
+                                          <button type="button"
+                                                  @click.stop="deleteModel(model.id)"
+                                                  class="h-7 w-7 inline-flex items-center justify-center rounded-neo text-zinc-400 hover:text-danger dark:hover:text-danger-light hover:bg-white/70 dark:hover:bg-zinc-900/60"
+                                                  title="删除模型">
+                                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                              <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                            </svg>
+                                          </button>
+                                        </div>
+                                      </div>
+                                    </template>
+                                    <template x-if="editingModelId === model.id">
+                                      <div class="flex items-center gap-2 p-1">
+                                        <input type="text"
+                                               x-model="editingModelInput"
+                                               @keydown.enter.prevent="saveEditedModel(model.id)"
+                                               @keydown.escape.prevent="cancelEditModel()"
+                                               class="min-w-0 flex-1 px-2.5 py-1.5 bg-white/80 dark:bg-zinc-900/80 border border-brand/70 rounded-neo outline-none text-sm font-mono text-zinc-800 dark:text-zinc-100">
+                                        <button type="button"
+                                                @click="saveEditedModel(model.id)"
+                                                class="btn-primary px-2.5 py-1.5 text-xs font-medium">
+                                          保存
+                                        </button>
+                                        <button type="button"
+                                                @click="cancelEditModel()"
+                                                class="btn-secondary px-2.5 py-1.5 text-xs font-medium">
+                                          取消
+                                        </button>
+                                      </div>
+                                    </template>
+                                  </div>
                                 </template>
                               </div>
                             </div>
@@ -1326,10 +1398,10 @@ export function getModalEnhancedHTML() {
                             label: '单次会话最大工具调用数',
                             model: 'agentToolCallLimitInput',
                             min: 10,
-                            max: 200,
+                            max: 300,
                             step: 5,
                             commit: 'commitAgentAdvancedInputs()',
-                            hint: '范围 10-200，默认 50',
+                            hint: '范围 10-300，默认 100',
                           })}
 
                           ${getRangeControlHTML({
@@ -1339,7 +1411,7 @@ export function getModalEnhancedHTML() {
                             max: 500000,
                             step: 10000,
                             commit: 'commitAgentAdvancedInputs()',
-                            hint: '范围 10000-500000，默认 80000',
+                            hint: '范围 10000-500000，默认 160000',
                           })}
 
                           ${getRangeControlHTML({
@@ -2099,9 +2171,13 @@ export function getModalEnhancedHTML() {
                   get currentPositionLabel() {
                     return this.positionOptions.find((option) => option.value === (this.entry.position ?? null))?.label || '默认';
                   },
+                  markDirty() {
+                    modal.dirty = true;
+                  },
                   selectPosition(value) {
                     this.entry.position = value;
                     this.positionOpen = false;
+                    this.markDirty();
                   },
 
                   addKey() {
@@ -2110,6 +2186,7 @@ export function getModalEnhancedHTML() {
                     if (!this.entry.keys) this.entry.keys = [];
                     if (!this.entry.keys.includes(trimmed)) {
                       this.entry.keys.push(trimmed);
+                      this.markDirty();
                     }
                     this.newKey = '';
                   },
@@ -2117,6 +2194,7 @@ export function getModalEnhancedHTML() {
                   removeKey(keyIndex) {
                     if (this.entry.keys && keyIndex >= 0 && keyIndex < this.entry.keys.length) {
                       this.entry.keys.splice(keyIndex, 1);
+                      this.markDirty();
                     }
                   },
                   
@@ -2127,6 +2205,7 @@ export function getModalEnhancedHTML() {
                     if (!this.entry.secondary_keys) this.entry.secondary_keys = [];
                     if (!this.entry.secondary_keys.includes(trimmed)) {
                       this.entry.secondary_keys.push(trimmed);
+                      this.markDirty();
                     }
                     input.value = '';
                   },
@@ -2134,6 +2213,7 @@ export function getModalEnhancedHTML() {
                   removeSecondaryKey(keyIndex) {
                     if (this.entry.secondary_keys && keyIndex >= 0 && keyIndex < this.entry.secondary_keys.length) {
                       this.entry.secondary_keys.splice(keyIndex, 1);
+                      this.markDirty();
                     }
                   }
                 }">
@@ -2141,13 +2221,15 @@ export function getModalEnhancedHTML() {
                   <div class="flex flex-wrap items-end gap-3 mb-3">
                     <div class="w-48">
                       <label class="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">名称</label>
-                      <input type="text" x-model="entry.name" 
+                      <input type="text" x-model="entry.name"
+                             @input="markDirty()"
                              class="w-full px-2.5 py-1.5 bg-zinc-900/[0.03] dark:bg-zinc-800/80 border-2 border-zinc-200/80 dark:border-zinc-700/80 rounded-neo text-sm text-zinc-800 dark:text-zinc-100 outline-none   focus:border-brand dark:focus:border-brand-400"
                              placeholder="条目名称">
                     </div>
                     <div class="w-20">
                       <label class="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">顺序</label>
                       <input type="text" x-model.number="entry.insertion_order" inputmode="numeric" pattern="[0-9]*"
+                             @input="markDirty()"
                              class="w-full px-2.5 py-1.5 bg-zinc-900/[0.03] dark:bg-zinc-800/80 border-2 border-zinc-200/80 dark:border-zinc-700/80 rounded-neo text-sm text-zinc-800 dark:text-zinc-100 outline-none   focus:border-brand dark:focus:border-brand-400">
                     </div>
                     <div class="flex-1 min-w-[200px]">
@@ -2177,7 +2259,7 @@ export function getModalEnhancedHTML() {
                     </div>
                     <div class="flex items-center gap-1.5 py-1.5">
                       <!-- 启用 toggle -->
-                      <button @click="entry.enabled = !entry.enabled" type="button"
+                      <button @click="entry.enabled = !entry.enabled; markDirty()" type="button"
                               :class="entry.enabled ? 'pill-toggle-active' : 'pill-toggle-inactive'"
                               class="pill-toggle gap-1 px-2.5 py-1 text-xs font-medium">
                         <svg x-show="entry.enabled" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
@@ -2186,7 +2268,7 @@ export function getModalEnhancedHTML() {
                         <span>启用</span>
                       </button>
                       <!-- Constant toggle -->
-                      <button @click="entry.constant = !entry.constant" type="button"
+                      <button @click="entry.constant = !entry.constant; markDirty()" type="button"
                               :class="entry.constant ? 'pill-toggle-active' : 'pill-toggle-inactive'"
                               class="pill-toggle gap-1 px-2.5 py-1 text-xs font-medium">
                         <svg x-show="entry.constant" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
@@ -2195,7 +2277,7 @@ export function getModalEnhancedHTML() {
                         <span>常驻</span>
                       </button>
                       <!-- Selective toggle -->
-                      <button @click="entry.selective = !entry.selective" type="button"
+                      <button @click="entry.selective = !entry.selective; markDirty()" type="button"
                               :class="entry.selective ? 'pill-toggle-active' : 'pill-toggle-inactive'"
                               class="pill-toggle gap-1 px-2.5 py-1 text-xs font-medium">
                         <svg x-show="entry.selective" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
@@ -2210,6 +2292,7 @@ export function getModalEnhancedHTML() {
                   <div class="flex-1 flex flex-col min-h-0">
                     <label class="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">内容</label>
                     <textarea x-model="entry.content"
+                              @input="markDirty()"
                               class="flex-1 w-full px-3 py-2 bg-zinc-900/[0.03] dark:bg-zinc-800/80 border-2 border-zinc-200/80 dark:border-zinc-700/80 rounded-neo text-sm font-mono text-zinc-800 dark:text-zinc-100 outline-none resize-none   focus:border-brand dark:focus:border-brand-400"
                               placeholder="条目内容..."></textarea>
                   </div>
@@ -2228,7 +2311,7 @@ export function getModalEnhancedHTML() {
                       <div class="space-y-3">
                         <div class="grid grid-cols-1 lg:grid-cols-[auto_auto_auto_1fr] gap-3 items-end">
                           <div class="flex flex-wrap items-center gap-1.5 pt-5">
-                            <button @click="entry.case_sensitive = !entry.case_sensitive" type="button"
+                            <button @click="entry.case_sensitive = !entry.case_sensitive; markDirty()" type="button"
                                     :class="entry.case_sensitive ? 'pill-toggle-active' : 'pill-toggle-inactive'"
                                      class="pill-toggle gap-1 px-2 py-1 text-xs font-medium">
                               <svg x-show="entry.case_sensitive" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
@@ -2236,7 +2319,7 @@ export function getModalEnhancedHTML() {
                               </svg>
                               <span>区分大小写</span>
                             </button>
-                            <button @click="entry.use_regex = !entry.use_regex" type="button"
+                            <button @click="entry.use_regex = !entry.use_regex; markDirty()" type="button"
                                     :class="entry.use_regex ? 'pill-toggle-active' : 'pill-toggle-inactive'"
                                      class="pill-toggle gap-1 px-2 py-1 text-xs font-medium">
                               <svg x-show="entry.use_regex" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
@@ -2271,12 +2354,14 @@ export function getModalEnhancedHTML() {
                           <div class="lg:w-24">
                             <label class="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">优先级</label>
                             <input type="text" x-model.number="entry.priority" inputmode="numeric" pattern="[0-9]*"
+                                   @input="markDirty()"
                                    class="w-full px-2.5 py-1.5 bg-zinc-900/[0.03] dark:bg-zinc-800/80 border-2 border-zinc-200/80 dark:border-zinc-700/80 rounded-neo text-xs text-zinc-700 dark:text-zinc-200 outline-none   focus:border-brand dark:focus:border-brand-400"
                                    placeholder="0">
                           </div>
                           <div class="min-w-[200px]">
                             <label class="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">备注</label>
-                            <input type="text" x-model="entry.comment" 
+                            <input type="text" x-model="entry.comment"
+                                   @input="markDirty()"
                                    class="w-full px-2.5 py-1.5 bg-zinc-900/[0.03] dark:bg-zinc-800/80 border-2 border-zinc-200/80 dark:border-zinc-700/80 rounded-neo text-xs text-zinc-700 dark:text-zinc-200 outline-none   focus:border-brand dark:focus:border-brand-400"
                                    placeholder="仅供参考">
                           </div>

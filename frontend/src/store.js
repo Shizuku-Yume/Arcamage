@@ -470,12 +470,12 @@ export function initStores() {
     includeV2Compat: true,
     
     // Agent 功能设置
-    agentShowActivityTrace: false,
+    agentShowActivityTrace: true,
     skillsEnabled: true,
-    
+
     // Agent 高级设置
-    agentToolCallLimit: 50,
-    agentMaxValueChars: 80000,
+    agentToolCallLimit: 100,
+    agentMaxValueChars: 160000,
     agentSkillAutoMatchLimit: 3,
     agentDiffLayout: 'split',
     agentDiffWrap: true,
@@ -512,12 +512,12 @@ export function initStores() {
           const parsed = JSON.parse(saved);
           this.autoSaveEnabled = parsed.autoSaveEnabled ?? true;
           this.autoSaveInterval = parsed.autoSaveInterval ?? 30;
-          this.agentShowActivityTrace = parsed.agentShowActivityTrace ?? false;
+          this.agentShowActivityTrace = parsed.agentShowActivityTrace ?? true;
           this.skillsEnabled = parsed.skillsEnabled ?? true;
           this.includeV2Compat = parsed.includeV2Compat ?? true;
           this.proxyEnabled = parsed.proxyEnabled ?? false;
-          this.agentToolCallLimit = parsed.agentToolCallLimit ?? 50;
-          this.agentMaxValueChars = parsed.agentMaxValueChars ?? 80000;
+          this.agentToolCallLimit = parsed.agentToolCallLimit ?? 100;
+          this.agentMaxValueChars = parsed.agentMaxValueChars ?? 160000;
           this.agentSkillAutoMatchLimit = parsed.agentSkillAutoMatchLimit ?? 3;
           this.agentDiffLayout = parsed.agentDiffLayout ?? 'split';
           this.agentDiffWrap = parsed.agentDiffWrap ?? true;

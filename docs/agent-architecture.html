@@ -1,0 +1,644 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Arcamage Agent 架构设计图</title>
+  <style>
+    :root {
+      --bg: #f6f7fb;
+      --panel: #ffffff;
+      --ink: #172033;
+      --muted: #64748b;
+      --line: #94a3b8;
+      --blue: #2563eb;
+      --blue-soft: #dbeafe;
+      --purple: #7c3aed;
+      --purple-soft: #ede9fe;
+      --green: #059669;
+      --green-soft: #d1fae5;
+      --orange: #ea580c;
+      --orange-soft: #ffedd5;
+      --rose: #e11d48;
+      --rose-soft: #ffe4e6;
+      --shadow: 0 18px 45px rgba(15, 23, 42, 0.10);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 15% 5%, rgba(124, 58, 237, 0.16), transparent 28rem),
+        radial-gradient(circle at 90% 8%, rgba(37, 99, 235, 0.14), transparent 30rem),
+        var(--bg);
+      color: var(--ink);
+      font-family: "Inter", "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      line-height: 1.55;
+    }
+
+    .page {
+      width: min(1500px, calc(100% - 48px));
+      margin: 0 auto;
+      padding: 42px 0 64px;
+    }
+
+    .hero {
+      margin-bottom: 28px;
+      padding: 30px 34px;
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      border-radius: 28px;
+      background: rgba(255, 255, 255, 0.80);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(16px);
+    }
+
+    .hero h1 {
+      margin: 0 0 8px;
+      font-size: 34px;
+      letter-spacing: -0.03em;
+    }
+
+    .hero p {
+      margin: 0;
+      max-width: 980px;
+      color: var(--muted);
+      font-size: 17px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 24px;
+    }
+
+    .section {
+      grid-column: span 12;
+      padding: 28px;
+      border: 1px solid rgba(148, 163, 184, 0.34);
+      border-radius: 26px;
+      background: rgba(255, 255, 255, 0.92);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .section.compact {
+      grid-column: span 6;
+    }
+
+    .section-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .section-title .index {
+      display: inline-grid;
+      place-items: center;
+      width: 36px;
+      height: 36px;
+      border-radius: 12px;
+      color: #fff;
+      background: linear-gradient(135deg, var(--blue), var(--purple));
+      font-weight: 800;
+    }
+
+    .section-title h2 {
+      margin: 0;
+      font-size: 24px;
+    }
+
+    .section-title p {
+      margin: 2px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .diagram {
+      position: relative;
+      padding: 18px;
+      border-radius: 22px;
+      background:
+        linear-gradient(rgba(148, 163, 184, 0.08) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(148, 163, 184, 0.08) 1px, transparent 1px),
+        #fbfdff;
+      background-size: 26px 26px;
+      border: 1px solid rgba(148, 163, 184, 0.22);
+    }
+
+    .row {
+      display: flex;
+      align-items: stretch;
+      justify-content: center;
+      gap: 22px;
+      margin: 16px 0;
+    }
+
+    .column {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      min-width: 210px;
+    }
+
+    .node {
+      position: relative;
+      min-width: 190px;
+      padding: 16px 18px;
+      border: 2px solid var(--line);
+      border-radius: 18px;
+      background: #fff;
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+      text-align: center;
+    }
+
+    .node strong {
+      display: block;
+      margin-bottom: 5px;
+      font-size: 16px;
+    }
+
+    .node span {
+      display: block;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .node.blue { border-color: var(--blue); background: var(--blue-soft); }
+    .node.purple { border-color: var(--purple); background: var(--purple-soft); }
+    .node.green { border-color: var(--green); background: var(--green-soft); }
+    .node.orange { border-color: var(--orange); background: var(--orange-soft); }
+    .node.rose { border-color: var(--rose); background: var(--rose-soft); }
+
+    .node.wide {
+      min-width: 280px;
+    }
+
+    .node.small {
+      min-width: 160px;
+      padding: 13px 14px;
+    }
+
+    .arrow {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 46px;
+      color: var(--line);
+      font-size: 30px;
+      font-weight: 800;
+    }
+
+    .down {
+      width: 2px;
+      height: 34px;
+      margin: 0 auto;
+      background: var(--line);
+      position: relative;
+    }
+
+    .down::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      bottom: -2px;
+      width: 11px;
+      height: 11px;
+      border-right: 2px solid var(--line);
+      border-bottom: 2px solid var(--line);
+      transform: translateX(-50%) rotate(45deg);
+    }
+
+    .lane {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr auto 1fr;
+      gap: 14px;
+      align-items: center;
+    }
+
+    .stack {
+      display: grid;
+      gap: 14px;
+    }
+
+    .tool-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      margin-top: 18px;
+    }
+
+    .tool-card {
+      padding: 16px;
+      border-radius: 18px;
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      background: rgba(255, 255, 255, 0.88);
+    }
+
+    .tool-card h3 {
+      margin: 0 0 8px;
+      font-size: 16px;
+    }
+
+    .tool-card ul {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 9px;
+      margin-top: 10px;
+    }
+
+    .pill {
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: #eef2ff;
+      color: #3730a3;
+      border: 1px solid #c7d2fe;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .note {
+      margin-top: 18px;
+      padding: 14px 16px;
+      border-left: 5px solid var(--blue);
+      border-radius: 14px;
+      background: #eff6ff;
+      color: #1e3a8a;
+      font-size: 14px;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 16px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 999px;
+      display: inline-block;
+    }
+
+    .dot.blue { background: var(--blue); }
+    .dot.purple { background: var(--purple); }
+    .dot.green { background: var(--green); }
+    .dot.orange { background: var(--orange); }
+    .dot.rose { background: var(--rose); }
+
+    .flow-list {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 12px;
+      counter-reset: step;
+    }
+
+    .flow-step {
+      position: relative;
+      padding: 42px 14px 16px;
+      min-height: 142px;
+      border-radius: 18px;
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      background: #fff;
+      box-shadow: 0 10px 22px rgba(15, 23, 42, 0.07);
+    }
+
+    .flow-step::before {
+      counter-increment: step;
+      content: counter(step);
+      position: absolute;
+      top: 13px;
+      left: 14px;
+      display: inline-grid;
+      place-items: center;
+      width: 24px;
+      height: 24px;
+      border-radius: 8px;
+      color: #fff;
+      background: var(--purple);
+      font-weight: 800;
+      font-size: 13px;
+    }
+
+    .flow-step h3 {
+      margin: 0 0 6px;
+      font-size: 15px;
+    }
+
+    .flow-step p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    @media print {
+      body { background: #fff; }
+      .page { width: 100%; padding: 0; }
+      .section, .hero { box-shadow: none; break-inside: avoid; }
+    }
+
+    @media (max-width: 1100px) {
+      .section.compact { grid-column: span 12; }
+      .lane, .flow-list, .tool-grid { grid-template-columns: 1fr; }
+      .arrow { transform: rotate(90deg); }
+      .row { flex-direction: column; align-items: center; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="hero">
+      <h1>Arcamage Agent 架构设计图</h1>
+      <p>本页面用于实验报告配图，展示项目中 Agent 的总体架构、工具调用链路和 Skills 系统设计。图示采用类似 Mermaid 的节点与流程图样式，可直接使用浏览器截图。</p>
+    </header>
+
+    <div class="grid">
+      <section class="section">
+        <div class="section-title">
+          <span class="index">1</span>
+          <div>
+            <h2>Agent 总体架构</h2>
+            <p>从用户自然语言输入到角色卡结构化修改的完整分层设计</p>
+          </div>
+        </div>
+
+        <div class="diagram">
+          <div class="row">
+            <div class="node blue wide">
+              <strong>用户交互层</strong>
+              <span>Agent 侧栏 / 聊天输入 / 预设菜单 / Skills 菜单</span>
+            </div>
+          </div>
+          <div class="down"></div>
+          <div class="row">
+            <div class="node purple wide">
+              <strong>Agent Runtime 调度层</strong>
+              <span>构造系统提示词、拼接上下文、管理模型回复与工具循环</span>
+            </div>
+          </div>
+          <div class="down"></div>
+          <div class="row">
+            <div class="column">
+              <div class="node green">
+                <strong>角色卡上下文</strong>
+                <span>当前字段、世界书摘要、差异状态</span>
+              </div>
+              <div class="node green">
+                <strong>参考资料上下文</strong>
+                <span>用户上传资料、搜索结果、片段读取</span>
+              </div>
+            </div>
+            <div class="arrow">→</div>
+            <div class="node purple wide">
+              <strong>pi agent / LLM 调用层</strong>
+              <span>基于用户目标进行推理，决定回复或发起工具调用</span>
+            </div>
+            <div class="arrow">→</div>
+            <div class="column">
+              <div class="node orange">
+                <strong>工具执行层</strong>
+                <span>card、lorebook、ref、skill 工具</span>
+              </div>
+              <div class="node rose">
+                <strong>安全校验层</strong>
+                <span>参数白名单、路径检查、哈希校验、差异预览</span>
+              </div>
+            </div>
+          </div>
+          <div class="down"></div>
+          <div class="row">
+            <div class="node blue wide">
+              <strong>结果展示与应用</strong>
+              <span>自然语言总结、工具轨迹、变更摘要、修改前后差异</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="legend">
+          <span><i class="dot blue"></i>界面交互</span>
+          <span><i class="dot purple"></i>Agent 推理与调度</span>
+          <span><i class="dot green"></i>上下文输入</span>
+          <span><i class="dot orange"></i>工具能力</span>
+          <span><i class="dot rose"></i>安全控制</span>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-title">
+          <span class="index">2</span>
+          <div>
+            <h2>工具调用设计</h2>
+            <p>Agent 不直接改写整张角色卡，而是通过受控工具进行结构化读写</p>
+          </div>
+        </div>
+
+        <div class="diagram">
+          <div class="flow-list">
+            <div class="flow-step">
+              <h3>接收用户任务</h3>
+              <p>用户用自然语言提出需求，例如润色设定、整理世界书或补充角色信息。</p>
+            </div>
+            <div class="flow-step">
+              <h3>选择必要上下文</h3>
+              <p>Runtime 准备当前角色卡快照、Skills 内容和参考资料摘要。</p>
+            </div>
+            <div class="flow-step">
+              <h3>模型决定工具</h3>
+              <p>pi agent/LLM 根据任务判断需要读取字段、搜索条目或执行修改。</p>
+            </div>
+            <div class="flow-step">
+              <h3>执行安全工具</h3>
+              <p>工具执行器校验参数、字段路径和哈希后，对指定位置进行读写。</p>
+            </div>
+            <div class="flow-step">
+              <h3>返回结果确认</h3>
+              <p>系统展示工具调用轨迹、变更摘要和差异预览，便于用户检查。</p>
+            </div>
+          </div>
+
+          <div class="tool-grid">
+            <div class="tool-card">
+              <h3>card_* 普通字段工具</h3>
+              <ul>
+                <li>列出角色卡字段结构</li>
+                <li>读取指定字段片段</li>
+                <li>设置字段值或文本补丁</li>
+                <li>编辑数组类字段条目</li>
+              </ul>
+              <div class="pill-row">
+                <span class="pill">card_read_field</span>
+                <span class="pill">card_patch_text</span>
+                <span class="pill">card_edit_items</span>
+              </div>
+            </div>
+
+            <div class="tool-card">
+              <h3>lorebook_* 世界书工具</h3>
+              <ul>
+                <li>查看世界书摘要</li>
+                <li>搜索世界书条目</li>
+                <li>读取或修改指定条目</li>
+                <li>新增、删除、重排条目</li>
+              </ul>
+              <div class="pill-row">
+                <span class="pill">lorebook_search_entries</span>
+                <span class="pill">lorebook_patch_entry</span>
+                <span class="pill">lorebook_upsert_entry</span>
+              </div>
+            </div>
+
+            <div class="tool-card">
+              <h3>ref_* 参考资料工具</h3>
+              <ul>
+                <li>列出用户上传资料</li>
+                <li>按片段读取资料内容</li>
+                <li>在资料中搜索关键词</li>
+                <li>辅助设定补全与一致性检查</li>
+              </ul>
+              <div class="pill-row">
+                <span class="pill">ref_list</span>
+                <span class="pill">ref_read</span>
+                <span class="pill">ref_search</span>
+              </div>
+            </div>
+
+            <div class="tool-card">
+              <h3>skill_* 技能仓工具</h3>
+              <ul>
+                <li>列出可用 Skills</li>
+                <li>读取技能正文和引用</li>
+                <li>新增或更新技能文档</li>
+                <li>删除不再使用的技能</li>
+              </ul>
+              <div class="pill-row">
+                <span class="pill">skill_list</span>
+                <span class="pill">skill_read</span>
+                <span class="pill">skill_upsert</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="note">设计重点：所有工具参数都经过白名单限制，字段路径会过滤危险 token，长文本修改优先使用补丁方式，世界书内容由专门的 lorebook 工具处理，从而降低误改整张角色卡的风险。</div>
+      </section>
+
+      <section class="section compact">
+        <div class="section-title">
+          <span class="index">3</span>
+          <div>
+            <h2>Skills 系统设计</h2>
+            <p>将特定任务经验沉淀为可复用的 Markdown 技能文档</p>
+          </div>
+        </div>
+
+        <div class="diagram">
+          <div class="stack">
+            <div class="lane">
+              <div class="node blue small">
+                <strong>技能目录</strong>
+                <span>catalog</span>
+              </div>
+              <div class="arrow">→</div>
+              <div class="node purple small">
+                <strong>技能文档</strong>
+                <span>name / description / content</span>
+              </div>
+              <div class="arrow">→</div>
+              <div class="node green small">
+                <strong>引用资料</strong>
+                <span>references/*.md</span>
+              </div>
+            </div>
+
+            <div class="down"></div>
+
+            <div class="row">
+              <div class="node orange wide">
+                <strong>技能选择机制</strong>
+                <span>用户手动启用 + 根据指令关键词自动匹配</span>
+              </div>
+            </div>
+
+            <div class="down"></div>
+
+            <div class="row">
+              <div class="node purple wide">
+                <strong>上下文构建器</strong>
+                <span>控制总字符预算，裁剪低优先级段落，记录截断和忽略信息</span>
+              </div>
+            </div>
+
+            <div class="down"></div>
+
+            <div class="row">
+              <div class="node blue wide">
+                <strong>注入 Agent Runtime</strong>
+                <span>作为系统上下文影响模型行为，使任务流程更稳定</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section compact">
+        <div class="section-title">
+          <span class="index">4</span>
+          <div>
+            <h2>一次 Agent 运行时序</h2>
+            <p>从输入到修改完成的典型执行路径</p>
+          </div>
+        </div>
+
+        <div class="diagram">
+          <div class="stack">
+            <div class="node blue wide">
+              <strong>1. 用户输入</strong>
+              <span>“请根据资料补充角色世界书，并优化开场白”</span>
+            </div>
+            <div class="down"></div>
+            <div class="node green wide">
+              <strong>2. 收集上下文</strong>
+              <span>当前角色卡字段 + 世界书摘要 + 启用 Skills + 参考资料列表</span>
+            </div>
+            <div class="down"></div>
+            <div class="node purple wide">
+              <strong>3. LLM 推理</strong>
+              <span>判断需要搜索资料、读取世界书、修改相关字段</span>
+            </div>
+            <div class="down"></div>
+            <div class="node orange wide">
+              <strong>4. 工具循环</strong>
+              <span>ref_search → lorebook_search_entries → lorebook_upsert_entry → card_patch_text</span>
+            </div>
+            <div class="down"></div>
+            <div class="node rose wide">
+              <strong>5. 校验与展示</strong>
+              <span>检测宏和 HTML 标签保留情况，生成差异摘要并展示给用户</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+</body>
+</html>
