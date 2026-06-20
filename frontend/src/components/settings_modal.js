@@ -7,12 +7,97 @@ import {
   DEFAULT_CONTEXT_WINDOW,
   DEFAULT_MAX_TOKENS,
   DEFAULT_SUPPLIER_API,
+  MAX_CONTEXT_WINDOW,
+  MAX_MAX_TOKENS,
+  MIN_CONTEXT_WINDOW,
+  MIN_MAX_TOKENS,
   DEFAULT_SUPPLIER_PROVIDER,
   DEFAULT_SUPPLIER_TRANSPORT,
   normalizeSupplierConfig,
   normalizeSupplierModels,
 } from '../agent/llm/model.js';
 import { confirm } from './modal.js';
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function hexToRgb(hex) {
+  if (!isValidHex(hex)) return null;
+  return {
+    r: parseInt(hex.slice(1, 3), 16),
+    g: parseInt(hex.slice(3, 5), 16),
+    b: parseInt(hex.slice(5, 7), 16),
+  };
+}
+
+function rgbToHex(r, g, b) {
+  const toHex = (value) => Math.round(clamp(value, 0, 255)).toString(16).padStart(2, '0');
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`.toUpperCase();
+}
+
+function hexToHsv(hex) {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return { h: 260, s: 56, v: 100 };
+
+  const r = rgb.r / 255;
+  const g = rgb.g / 255;
+  const b = rgb.b / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const delta = max - min;
+  let h = 0;
+
+  if (delta !== 0) {
+    if (max === r) {
+      h = 60 * (((g - b) / delta) % 6);
+    } else if (max === g) {
+      h = 60 * ((b - r) / delta + 2);
+    } else {
+      h = 60 * ((r - g) / delta + 4);
+    }
+  }
+
+  return {
+    h: Math.round((h + 360) % 360),
+    s: Math.round(max === 0 ? 0 : (delta / max) * 100),
+    v: Math.round(max * 100),
+  };
+}
+
+function hsvToHex(h, s, v) {
+  const hue = ((h % 360) + 360) % 360;
+  const saturation = clamp(s, 0, 100) / 100;
+  const value = clamp(v, 0, 100) / 100;
+  const chroma = value * saturation;
+  const x = chroma * (1 - Math.abs(((hue / 60) % 2) - 1));
+  const m = value - chroma;
+  let r = 0;
+  let g = 0;
+  let b = 0;
+
+  if (hue < 60) {
+    r = chroma;
+    g = x;
+  } else if (hue < 120) {
+    r = x;
+    g = chroma;
+  } else if (hue < 180) {
+    g = chroma;
+    b = x;
+  } else if (hue < 240) {
+    g = x;
+    b = chroma;
+  } else if (hue < 300) {
+    r = x;
+    b = chroma;
+  } else {
+    r = chroma;
+    b = x;
+  }
+
+  return rgbToHex((r + m) * 255, (g + m) * 255, (b + m) * 255);
+}
 
 const SUPPLIER_PROVIDER_BY_API = {
   'openai-completions': 'openai-compatible',
@@ -189,6 +274,11 @@ export function settingsModal() {
     selectedAccent: 'teal',
     customHex: '',
     customHexError: '',
+    customPickerOpen: false,
+    customPickerHue: 260,
+    customPickerSaturation: 56,
+    customPickerValue: 100,
+    customRgb: { r: 157, g: 111, b: 255 },
     accentPresets: ACCENT_PRESETS,
 
     localStorageUsageBytes: 0,
@@ -221,6 +311,7 @@ export function settingsModal() {
       
       this.selectedAccent = settings.accentColor || 'teal';
       this.customHex = settings.customAccentHex || '';
+      this.syncCustomPickerFromHex(this.customColorPickerValue);
 
       this.providers = (suppliers.providers || []).map((provider, index) => normalizeSupplierConfig({
         id: provider?.id || `provider_${index + 1}`,
@@ -242,20 +333,130 @@ export function settingsModal() {
       Alpine.store('settings').setAccent(presetId);
     },
     
+    get customColorPickerValue() {
+      const normalized = normalizeHex(this.customHex);
+      return isValidHex(normalized) ? normalized : ACCENT_PRESETS.fuji.shades[500];
+    },
+
+    get customPickerHueColor() {
+      return hsvToHex(this.customPickerHue, 100, 100);
+    },
+
+    get customPickerPanelStyle() {
+      return {
+        background: `linear-gradient(to top, rgb(0 0 0), transparent), linear-gradient(to right, rgb(255 255 255), ${this.customPickerHueColor})`,
+      };
+    },
+
+    get customPickerCursorStyle() {
+      return {
+        left: `${this.customPickerSaturation}%`,
+        top: `${100 - this.customPickerValue}%`,
+        backgroundColor: this.customColorPickerValue,
+      };
+    },
+
+    get customPickerHueStyle() {
+      return { left: `${(this.customPickerHue / 360) * 100}%` };
+    },
+
+    toggleCustomPicker() {
+      this.customPickerOpen = !this.customPickerOpen;
+      if (this.customPickerOpen) {
+        this.syncCustomPickerFromHex(this.customColorPickerValue);
+      }
+    },
+
+    closeCustomPicker() {
+      this.customPickerOpen = false;
+    },
+
+    syncCustomPickerFromHex(hexValue) {
+      const normalized = normalizeHex(hexValue);
+      if (!isValidHex(normalized)) return;
+
+      const hsv = hexToHsv(normalized);
+      const rgb = hexToRgb(normalized);
+      this.customPickerHue = hsv.h;
+      this.customPickerSaturation = hsv.s;
+      this.customPickerValue = hsv.v;
+      this.customRgb = rgb;
+    },
+
+    applyCustomHex(hexValue, syncPicker = true) {
+      const normalized = normalizeHex(hexValue);
+      if (!isValidHex(normalized)) {
+        this.customHexError = '请输入有效的十六进制颜色码 (#RRGGBB)';
+        return;
+      }
+
+      this.customHexError = '';
+      this.customHex = normalized;
+      this.selectedAccent = 'custom';
+      if (syncPicker) {
+        this.syncCustomPickerFromHex(normalized);
+      } else {
+        this.customRgb = hexToRgb(normalized);
+      }
+      Alpine.store('settings').setAccent('custom', normalized);
+    },
+
+    applyCustomPickerColor() {
+      this.applyCustomHex(
+        hsvToHex(this.customPickerHue, this.customPickerSaturation, this.customPickerValue),
+        false,
+      );
+    },
+
+    updateCustomPanel(event, rect = event.currentTarget.getBoundingClientRect()) {
+      this.customPickerSaturation = Math.round(clamp(((event.clientX - rect.left) / rect.width) * 100, 0, 100));
+      this.customPickerValue = Math.round(clamp((1 - ((event.clientY - rect.top) / rect.height)) * 100, 0, 100));
+      this.applyCustomPickerColor();
+    },
+
+    startCustomPanelDrag(event) {
+      const rect = event.currentTarget.getBoundingClientRect();
+      this.updateCustomPanel(event, rect);
+      const move = (moveEvent) => this.updateCustomPanel(moveEvent, rect);
+      const stop = () => {
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', stop);
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', stop, { once: true });
+    },
+
+    updateCustomHue(event, rect = event.currentTarget.getBoundingClientRect()) {
+      this.customPickerHue = Math.round(clamp(((event.clientX - rect.left) / rect.width) * 360, 0, 360));
+      this.applyCustomPickerColor();
+    },
+
+    startCustomHueDrag(event) {
+      const rect = event.currentTarget.getBoundingClientRect();
+      this.updateCustomHue(event, rect);
+      const move = (moveEvent) => this.updateCustomHue(moveEvent, rect);
+      const stop = () => {
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', stop);
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', stop, { once: true });
+    },
+
+    updateCustomRgb(channel, value) {
+      const rgb = {
+        ...this.customRgb,
+        [channel]: clamp(Number.parseInt(value, 10) || 0, 0, 255),
+      };
+      this.applyCustomHex(rgbToHex(rgb.r, rgb.g, rgb.b));
+    },
+
     validateCustomHex() {
       if (!this.customHex) {
         this.customHexError = '';
         return;
       }
-      const normalized = normalizeHex(this.customHex);
-      if (!isValidHex(normalized)) {
-        this.customHexError = '请输入有效的十六进制颜色码 (#RRGGBB)';
-      } else {
-        this.customHexError = '';
-        this.customHex = normalized;
-        this.selectedAccent = 'custom';
-        Alpine.store('settings').setAccent('custom', normalized);
-      }
+      this.applyCustomHex(this.customHex);
     },
 
     get currentProviderName() {
@@ -383,6 +584,16 @@ export function settingsModal() {
 
       const settings = Alpine.store('settings');
       const toast = Alpine.store('toast');
+
+      if (this.selectedAccent === 'custom') {
+        const normalized = normalizeHex(this.customHex);
+        if (!isValidHex(normalized)) {
+          this.customHexError = '请输入有效的十六进制颜色码 (#RRGGBB)';
+          toast.error('请输入有效的自定义强调色');
+          return;
+        }
+        this.customHex = normalized;
+      }
 
       this.persistSuppliersToStore();
 
@@ -635,21 +846,28 @@ export function settingsModal() {
       }
     },
 
-    normalizePositiveIntegerInput(value, fallback) {
+    normalizeIntegerRangeInput(value, fallback, min, max) {
       const numeric = Number(value);
-      if (!Number.isFinite(numeric) || numeric <= 0) return fallback;
-      return Math.floor(numeric);
+      if (!Number.isFinite(numeric)) return fallback;
+      return Math.min(max, Math.max(min, Math.floor(numeric)));
     },
 
     commitSupplierAdvancedInputs() {
       const compat = this.parseCompatJson();
       if (compat === null) return null;
 
-      const contextWindow = this.normalizePositiveIntegerInput(
+      const contextWindow = this.normalizeIntegerRangeInput(
         this.contextWindowInput,
         DEFAULT_CONTEXT_WINDOW,
+        MIN_CONTEXT_WINDOW,
+        MAX_CONTEXT_WINDOW,
       );
-      const maxTokens = this.normalizePositiveIntegerInput(this.maxTokensInput, DEFAULT_MAX_TOKENS);
+      const maxTokens = this.normalizeIntegerRangeInput(
+        this.maxTokensInput,
+        DEFAULT_MAX_TOKENS,
+        MIN_MAX_TOKENS,
+        MAX_MAX_TOKENS,
+      );
 
       this.contextWindowInput = String(contextWindow);
       this.maxTokensInput = String(maxTokens);

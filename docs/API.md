@@ -33,7 +33,7 @@
 - `GET /api/health`、`GET /api/version`、`GET /api` 返回普通 JSON
 - `POST /api/import/remote` 返回 `RemoteImportResponse`（非 `ApiResponse`）
 - `GET /api/import/remote/pending*` 返回普通 JSON
-- `POST /api/proxy/chat`：
+- `POST /api/llm/proxy`：
   - `stream=true` 时返回 SSE
   - `stream=false` 时返回上游 JSON（或上游错误 JSON）
 
@@ -259,34 +259,23 @@ API 根信息。
 
 ---
 
-## 6. 供应商接口（`/api/suppliers/*`）
+## 6. LLM 代理接口（`/api/llm/*`）
 
-用于 OpenAI 兼容服务连通性检查和模型列表拉取。
+用于受控转发 LLM 请求和模型列表拉取。旧 `/api/proxy/chat` 与 `/api/suppliers/*`
+接口已移除，旧 OpenAI-compatible 代理配置会迁移到 `transport: "arcamage-proxy"`。
 
-### `POST /api/suppliers/test-connection`
-
-请求示例：
-
-```json
-{
-  "base_url": "https://api.example.com",
-  "api_key": "sk-...",
-  "model": "gpt-4o-mini",
-  "use_proxy": true
-}
-```
-
-响应：`ApiResponse[SupplierConnectionResult]`，其中 `data.models` 为模型列表。
-
-### `POST /api/suppliers/models`
+### `POST /api/llm/models`
 
 请求示例：
 
 ```json
 {
+  "provider": "openai-compatible",
+  "api": "openai-completions",
   "base_url": "https://api.example.com",
   "api_key": "sk-...",
-  "use_proxy": true
+  "headers": {},
+  "path": "/v1/models"
 }
 ```
 
@@ -304,28 +293,33 @@ API 根信息。
 }
 ```
 
----
+### `POST /api/llm/proxy`
 
-## 7. Chat 代理接口（`/api/proxy/chat`）
-
-### `POST /api/proxy/chat`
-
-代理 OpenAI 兼容的 `/v1/chat/completions`。
+受控转发 LLM 请求。OpenAI-compatible、OpenAI Responses、Anthropic、Google、Mistral
+payload 由前端 adapter 构造，后端只负责安全校验、鉴权头生成和转发。
 
 请求示例：
 
 ```json
 {
+  "provider": "openai-compatible",
+  "api": "openai-completions",
   "base_url": "https://api.example.com",
   "api_key": "sk-...",
-  "model": "gpt-4o-mini",
-  "messages": [
-    { "role": "user", "content": "hello" }
-  ],
+  "method": "POST",
+  "path": "/v1/chat/completions",
+  "headers": {},
+  "body": {
+    "model": "gpt-4o-mini",
+    "messages": [
+      { "role": "user", "content": "hello" }
+    ],
+    "stream": true,
+    "temperature": 0.8,
+    "tools": [],
+    "tool_choice": "auto"
+  },
   "stream": true,
-  "temperature": 0.8,
-  "tools": [],
-  "tool_choice": "auto"
 }
 ```
 
@@ -348,7 +342,7 @@ API 根信息。
 | `TIMEOUT` | 请求超时 |
 | `UNAUTHORIZED` | 认证失败 |
 | `RATE_LIMITED` | 被限流 |
-| `UPSTREAM_ERROR` | 上游返回其它错误状态（主要见 `/api/proxy/chat`） |
+| `UPSTREAM_ERROR` | 上游返回其它错误状态 |
 | `INTERNAL_ERROR` | 服务器内部错误 |
 
 ---

@@ -36,8 +36,8 @@ describe('suppliers store migration', () => {
     expect(suppliers.api).toBe('openai-completions');
     expect(suppliers.compat).toEqual({ supportsDeveloperRole: false });
     expect(suppliers.headers).toEqual({});
-    expect(suppliers.contextWindow).toBe(128000);
-    expect(suppliers.maxTokens).toBe(4096);
+    expect(suppliers.contextWindow).toBe(262144);
+    expect(suppliers.maxTokens).toBe(65536);
 
     suppliers.save();
     const saved = JSON.parse(localStorage.getItem('arcamage_supplier_settings'));

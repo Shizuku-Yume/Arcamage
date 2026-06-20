@@ -1,4 +1,5 @@
 import { post } from '../../../api.js';
+import { DEFAULT_MAX_TOKENS } from '../model.js';
 import { contentToText, toLegacyOpenAiMessages, toInternalMessages } from '../messages.js';
 import { toLegacyOpenAiTools } from '../tools.js';
 import {
@@ -338,7 +339,7 @@ function toAnthropicToolChoice(toolChoice) {
 function buildAnthropicMessagesBody({ supplier, internalMessages, tools, toolChoice }) {
   const body = {
     model: supplier.model,
-    max_tokens: supplier.maxTokens || 4096,
+    max_tokens: supplier.maxTokens || DEFAULT_MAX_TOKENS,
     messages: toAnthropicMessages(internalMessages),
     stream: false,
   };

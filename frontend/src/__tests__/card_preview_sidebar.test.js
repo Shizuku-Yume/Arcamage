@@ -40,6 +40,23 @@ describe('card preview sidebar', () => {
     vi.clearAllMocks();
   });
 
+  it('keeps username edits local until committed', () => {
+    const { component, preview } = setupSidebar();
+
+    component.init();
+    component.draftUserName = '旅人A';
+    expect(preview.userName).toBe('旅人');
+    expect(runtime.restartConversation).not.toHaveBeenCalled();
+
+    component.commitUserName('旅人A');
+    expect(preview.userName).toBe('旅人A');
+    expect(component.draftUserName).toBe('旅人A');
+    expect(runtime.restartConversation).toHaveBeenCalledTimes(1);
+
+    component.commitUserName('旅人A');
+    expect(runtime.restartConversation).toHaveBeenCalledTimes(1);
+  });
+
   it('changes alternate greetings and can switch back to primary', () => {
     const { component, preview } = setupSidebar();
 

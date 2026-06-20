@@ -2,6 +2,7 @@ import Alpine from 'alpinejs';
 import { getArrayEditorHTML } from './array_editor.js';
 import { getFerryBatchHTML } from './ferry_batch.js';
 import { getFerryStagingHTML } from './ferry_staging.js';
+import { getRangeControlHTML } from './range_control.js';
 
 export function modalEnhanced() {
   return {
@@ -81,15 +82,11 @@ export function modalEnhanced() {
     },
 
     getCompactToggleClass(isActive) {
-      return isActive
-        ? 'bg-brand dark:bg-brand-600 text-white border-transparent shadow-none'
-        : 'bg-white/70 dark:bg-zinc-800/70 text-zinc-500 dark:text-zinc-400 border-transparent shadow-none';
+      return isActive ? 'pill-toggle-active' : 'pill-toggle-inactive';
     },
 
     getProviderChipClass(isActive) {
-      return isActive
-        ? 'bg-brand dark:bg-brand-600 text-white border-brand dark:border-brand-600'
-        : 'bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border-zinc-200 dark:border-zinc-600 hover:border-brand dark:hover:border-brand-500';
+      return this.getCompactToggleClass(isActive);
     }
   };
 }
@@ -704,35 +701,35 @@ export function getModalEnhancedHTML() {
                                 <div>
                                   <div class="text-[11px] text-zinc-400 dark:text-zinc-500 mb-1.5">启用状态</div>
                                   <div class="grid grid-cols-3 gap-1">
-                                    <button type="button" @click="setFilter('enabled', 'all')" :class="normalizedFilters.enabled === 'all' ? 'bg-brand text-white' : 'bg-zinc-50 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'" class="px-2 py-1.5 rounded-neo text-xs">全部</button>
-                                    <button type="button" @click="setFilter('enabled', 'enabled')" :class="normalizedFilters.enabled === 'enabled' ? 'bg-brand text-white' : 'bg-zinc-50 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'" class="px-2 py-1.5 rounded-neo text-xs">启用</button>
-                                    <button type="button" @click="setFilter('enabled', 'disabled')" :class="normalizedFilters.enabled === 'disabled' ? 'bg-brand text-white' : 'bg-zinc-50 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'" class="px-2 py-1.5 rounded-neo text-xs">禁用</button>
+                                    <button type="button" @click="setFilter('enabled', 'all')" :class="normalizedFilters.enabled === 'all' ? 'pill-toggle-active' : 'pill-toggle-inactive'" class="pill-toggle px-2.5 py-1.5 text-xs font-medium">全部</button>
+                                    <button type="button" @click="setFilter('enabled', 'enabled')" :class="normalizedFilters.enabled === 'enabled' ? 'pill-toggle-active' : 'pill-toggle-inactive'" class="pill-toggle px-2.5 py-1.5 text-xs font-medium">启用</button>
+                                    <button type="button" @click="setFilter('enabled', 'disabled')" :class="normalizedFilters.enabled === 'disabled' ? 'pill-toggle-active' : 'pill-toggle-inactive'" class="pill-toggle px-2.5 py-1.5 text-xs font-medium">禁用</button>
                                   </div>
                                 </div>
                                 <div class="grid grid-cols-2 gap-3">
                                   <div>
                                     <div class="text-[11px] text-zinc-400 dark:text-zinc-500 mb-1.5">常驻</div>
                                     <div class="grid grid-cols-1 gap-1">
-                                      <button type="button" @click="setFilter('constant', 'all')" :class="normalizedFilters.constant === 'all' ? 'bg-brand text-white' : 'bg-zinc-50 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'" class="px-2 py-1.5 rounded-neo text-xs text-left">全部</button>
-                                      <button type="button" @click="setFilter('constant', 'constant')" :class="normalizedFilters.constant === 'constant' ? 'bg-brand text-white' : 'bg-zinc-50 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'" class="px-2 py-1.5 rounded-neo text-xs text-left">仅常驻</button>
-                                      <button type="button" @click="setFilter('constant', 'non_constant')" :class="normalizedFilters.constant === 'non_constant' ? 'bg-brand text-white' : 'bg-zinc-50 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'" class="px-2 py-1.5 rounded-neo text-xs text-left">非常驻</button>
+                                      <button type="button" @click="setFilter('constant', 'all')" :class="normalizedFilters.constant === 'all' ? 'pill-toggle-active' : 'pill-toggle-inactive'" class="pill-toggle justify-start px-2.5 py-1.5 text-left text-xs font-medium">全部</button>
+                                      <button type="button" @click="setFilter('constant', 'constant')" :class="normalizedFilters.constant === 'constant' ? 'pill-toggle-active' : 'pill-toggle-inactive'" class="pill-toggle justify-start px-2.5 py-1.5 text-left text-xs font-medium">仅常驻</button>
+                                      <button type="button" @click="setFilter('constant', 'non_constant')" :class="normalizedFilters.constant === 'non_constant' ? 'pill-toggle-active' : 'pill-toggle-inactive'" class="pill-toggle justify-start px-2.5 py-1.5 text-left text-xs font-medium">非常驻</button>
                                     </div>
                                   </div>
                                   <div>
                                     <div class="text-[11px] text-zinc-400 dark:text-zinc-500 mb-1.5">选择性</div>
                                     <div class="grid grid-cols-1 gap-1">
-                                      <button type="button" @click="setFilter('selective', 'all')" :class="normalizedFilters.selective === 'all' ? 'bg-brand text-white' : 'bg-zinc-50 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'" class="px-2 py-1.5 rounded-neo text-xs text-left">全部</button>
-                                      <button type="button" @click="setFilter('selective', 'selective')" :class="normalizedFilters.selective === 'selective' ? 'bg-brand text-white' : 'bg-zinc-50 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'" class="px-2 py-1.5 rounded-neo text-xs text-left">选择性</button>
-                                      <button type="button" @click="setFilter('selective', 'non_selective')" :class="normalizedFilters.selective === 'non_selective' ? 'bg-brand text-white' : 'bg-zinc-50 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'" class="px-2 py-1.5 rounded-neo text-xs text-left">非选择性</button>
+                                      <button type="button" @click="setFilter('selective', 'all')" :class="normalizedFilters.selective === 'all' ? 'pill-toggle-active' : 'pill-toggle-inactive'" class="pill-toggle justify-start px-2.5 py-1.5 text-left text-xs font-medium">全部</button>
+                                      <button type="button" @click="setFilter('selective', 'selective')" :class="normalizedFilters.selective === 'selective' ? 'pill-toggle-active' : 'pill-toggle-inactive'" class="pill-toggle justify-start px-2.5 py-1.5 text-left text-xs font-medium">选择性</button>
+                                      <button type="button" @click="setFilter('selective', 'non_selective')" :class="normalizedFilters.selective === 'non_selective' ? 'pill-toggle-active' : 'pill-toggle-inactive'" class="pill-toggle justify-start px-2.5 py-1.5 text-left text-xs font-medium">非选择性</button>
                                     </div>
                                   </div>
                                 </div>
                                 <div>
                                   <div class="text-[11px] text-zinc-400 dark:text-zinc-500 mb-1.5">插入位置</div>
                                   <div class="grid grid-cols-2 gap-1">
-                                    <button type="button" @click="setFilter('position', 'all')" :class="normalizedFilters.position === 'all' ? 'bg-brand text-white' : 'bg-zinc-50 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'" class="px-2 py-1.5 rounded-neo text-xs text-left">全部位置</button>
+                                    <button type="button" @click="setFilter('position', 'all')" :class="normalizedFilters.position === 'all' ? 'pill-toggle-active' : 'pill-toggle-inactive'" class="pill-toggle justify-start px-2.5 py-1.5 text-left text-xs font-medium">全部位置</button>
                                     <template x-for="option in positionOptions" :key="option.value">
-                                      <button type="button" @click="setFilter('position', option.value)" :class="normalizedFilters.position === option.value ? 'bg-brand text-white' : 'bg-zinc-50 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'" class="px-2 py-1.5 rounded-neo text-xs text-left" x-text="option.label"></button>
+                                      <button type="button" @click="setFilter('position', option.value)" :class="normalizedFilters.position === option.value ? 'pill-toggle-active' : 'pill-toggle-inactive'" class="pill-toggle justify-start px-2.5 py-1.5 text-left text-xs font-medium" x-text="option.label"></button>
                                     </template>
                                   </div>
                                 </div>
@@ -792,7 +789,10 @@ export function getModalEnhancedHTML() {
                                  <span class="text-sm font-semibold text-zinc-700 dark:text-zinc-200 truncate group-hover:text-brand dark:group-hover:text-brand-400 " x-text="entry.name || '未命名条目'"></span>
                                  <div class="flex items-center gap-1">
                                       <span class="text-[10px] px-1.5 py-0.5 rounded-neo bg-zinc-100 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 font-mono" x-text="'#' + entry.insertion_order"></span>
-                                      <span x-show="entry.constant" class="text-[10px] px-1.5 py-0.5 rounded-neo bg-warning-light dark:bg-warning-dark text-warning dark:text-warning-light border border-warning/40 dark:border-warning/60">Constant</span>
+                                      <span x-show="entry.constant" title="始终激活" class="inline-flex items-center gap-1 rounded-full border border-warning/30 dark:border-warning/50 bg-warning-light/70 dark:bg-warning-dark/60 px-1.5 py-0.5 text-[10px] font-medium leading-none text-warning dark:text-warning-light shadow-sm shadow-warning/5">
+                                        <span class="h-1.5 w-1.5 rounded-full bg-warning dark:bg-warning-light"></span>
+                                        <span>常驻</span>
+                                      </span>
                                  </div>
                                </div>
                                <div class="text-xs text-zinc-400 dark:text-zinc-500 truncate font-mono" x-text="getEntrySummary(entry)"></div>
@@ -881,11 +881,15 @@ export function getModalEnhancedHTML() {
                     
                     <!-- Auto Save Interval -->
                     <div x-show="autoSaveEnabled">
-                      <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-200 mb-2">保存间隔（秒）</label>
-                      <input type="text" x-model="autoSaveIntervalInput" inputmode="numeric" pattern="[0-9]*"
-                             @blur="commitAutoSaveInterval()"
-                             @keydown.enter.prevent="commitAutoSaveInterval(); $event.target.blur()"
-                             class="w-32 px-4 py-2.5 bg-zinc-900/[0.03] dark:bg-zinc-800/80 border-2 border-zinc-200/80 dark:border-zinc-700/80 rounded-neo outline-none  text-sm text-zinc-800 dark:text-zinc-100  focus:border-brand dark:focus:border-brand-400">
+                      ${getRangeControlHTML({
+                        label: '保存间隔（秒）',
+                        model: 'autoSaveIntervalInput',
+                        min: 5,
+                        max: 300,
+                        step: 5,
+                        commit: 'commitAutoSaveInterval()',
+                        hint: '范围 5-300，默认 30',
+                      })}
                     </div>
                     
                     <!-- V2 Compatibility -->
@@ -972,7 +976,7 @@ export function getModalEnhancedHTML() {
                         <template x-for="provider in providers" :key="provider.id">
                           <button @click="switchProvider(provider.id)"
                                   :class="getProviderChipClass(provider.id === currentProviderId)"
-                                  class="px-3 py-1.5 text-sm font-medium rounded-neo border  flex items-center gap-2">
+                                  class="pill-toggle px-3 py-1.5 text-sm font-medium gap-2">
                             <span x-text="provider.name"></span>
                           </button>
                         </template>
@@ -1041,8 +1045,8 @@ export function getModalEnhancedHTML() {
                           <template x-for="option in supplierTransportOptions" :key="option.value">
                             <button type="button"
                                     @click="selectSupplierTransport(option.value)"
-                                    :class="supplierTransport === option.value ? 'bg-brand text-white shadow-none' : 'bg-transparent text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700/70'"
-                                    class="flex-1 px-3 py-2 rounded-neo text-sm font-medium transition-colors"
+                                    :class="supplierTransport === option.value ? 'pill-toggle-active' : 'pill-toggle-inactive'"
+                                    class="pill-toggle flex-1 px-3 py-2 text-sm font-medium"
                                     x-text="option.label"></button>
                           </template>
                         </div>
@@ -1153,12 +1157,17 @@ export function getModalEnhancedHTML() {
                     </div>
 
                     <div>
-                      <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-200 mb-2">模型温度 (Temperature)</label>
-                      <input type="text" x-model="temperatureInput" inputmode="decimal" pattern="[0-9]*[.]?[0-9]*"
-                             @blur="commitTemperature()"
-                             @keydown.enter.prevent="commitTemperature(); $event.target.blur()"
-                             class="w-32 px-4 py-2.5 bg-zinc-900/[0.03] dark:bg-zinc-800/80 border-2 border-zinc-200/80 dark:border-zinc-700/80 rounded-neo outline-none  text-sm text-zinc-800 dark:text-zinc-100  focus:border-brand dark:focus:border-brand-400">
-                      <p class="text-xs text-zinc-400 dark:text-zinc-500 mt-1">控制输出随机性，范围 0.0 - 2.0，默认 1.0</p>
+                      ${getRangeControlHTML({
+                        label: '模型温度 (Temperature)',
+                        model: 'temperatureInput',
+                        min: 0,
+                        max: 2,
+                        step: 0.1,
+                        commit: 'commitTemperature()',
+                        hint: '控制输出随机性，范围 0.0-2.0，默认 1.0',
+                        inputMode: 'decimal',
+                        pattern: '[0-9]*[.]?[0-9]*',
+                      })}
                     </div>
 
                     <div class="border border-zinc-200/70 dark:border-zinc-800/80 rounded-neo overflow-hidden">
@@ -1181,18 +1190,24 @@ export function getModalEnhancedHTML() {
                       <div x-show="showSupplierAdvanced" x-collapse class="border-t border-zinc-200/70 dark:border-zinc-800/80">
                         <div class="p-4 space-y-4 bg-white dark:bg-zinc-900/50">
                           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div>
-                              <label class="block text-sm text-zinc-600 dark:text-zinc-300 mb-1">Context Window</label>
-                              <input type="text" x-model="contextWindowInput" inputmode="numeric" pattern="[0-9]*"
-                                     @blur="commitSupplierAdvancedInputs()"
-                                     class="w-full px-3 py-2 bg-zinc-900/[0.03] dark:bg-zinc-800/80 border-2 border-zinc-200/80 dark:border-zinc-700/80 rounded-neo outline-none text-sm text-zinc-800 dark:text-zinc-100 focus:border-brand dark:focus:border-brand-400">
-                            </div>
-                            <div>
-                              <label class="block text-sm text-zinc-600 dark:text-zinc-300 mb-1">Max Tokens</label>
-                              <input type="text" x-model="maxTokensInput" inputmode="numeric" pattern="[0-9]*"
-                                     @blur="commitSupplierAdvancedInputs()"
-                                     class="w-full px-3 py-2 bg-zinc-900/[0.03] dark:bg-zinc-800/80 border-2 border-zinc-200/80 dark:border-zinc-700/80 rounded-neo outline-none text-sm text-zinc-800 dark:text-zinc-100 focus:border-brand dark:focus:border-brand-400">
-                            </div>
+                            ${getRangeControlHTML({
+                              label: 'Context Window',
+                              model: 'contextWindowInput',
+                              min: 65536,
+                              max: 1048576,
+                              step: 65536,
+                              commit: 'commitSupplierAdvancedInputs()',
+                              hint: '范围 65536-1048576，默认 262144',
+                            })}
+                            ${getRangeControlHTML({
+                              label: 'Max Tokens',
+                              model: 'maxTokensInput',
+                              min: 4096,
+                              max: 262144,
+                              step: 4096,
+                              commit: 'commitSupplierAdvancedInputs()',
+                              hint: '范围 4096-262144，默认 65536',
+                            })}
                           </div>
 
                           <div>
@@ -1250,13 +1265,13 @@ export function getModalEnhancedHTML() {
                           <p class="text-sm text-zinc-600 dark:text-zinc-300">布局模式</p>
                           <p class="text-xs text-zinc-400 dark:text-zinc-500">选择变更对比的显示方式</p>
                         </div>
-                        <div class="flex rounded-neo border border-zinc-200/70 dark:border-zinc-700/70 overflow-hidden bg-white/65 dark:bg-zinc-800/55">
+                        <div class="flex gap-1.5 rounded-full bg-zinc-900/[0.03] p-1 dark:bg-zinc-800/65">
                           <button @click="agentDiffLayout = 'unified'"
-                                  :class="agentDiffLayout === 'unified' ? 'bg-brand text-white' : 'bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'"
-                                  class="px-3 py-1.5 text-xs font-medium">统一</button>
+                                  :class="agentDiffLayout === 'unified' ? 'pill-toggle-active' : 'pill-toggle-inactive'"
+                                  class="pill-toggle px-3 py-1.5 text-xs font-medium">统一</button>
                           <button @click="agentDiffLayout = 'split'"
-                                  :class="agentDiffLayout === 'split' ? 'bg-brand text-white' : 'bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'"
-                                  class="px-3 py-1.5 text-xs font-medium border-l border-zinc-200/70 dark:border-zinc-700/70">分屏</button>
+                                  :class="agentDiffLayout === 'split' ? 'pill-toggle-active' : 'pill-toggle-inactive'"
+                                  class="pill-toggle px-3 py-1.5 text-xs font-medium">分屏</button>
                         </div>
                       </div>
 
@@ -1307,29 +1322,35 @@ export function getModalEnhancedHTML() {
                         <div class="p-4 space-y-4 bg-white dark:bg-zinc-900/50">
                           <p class="text-xs text-zinc-400 dark:text-zinc-500">这些设置通常无需修改，仅供高级用户调整</p>
                           
-                          <div>
-                            <label class="block text-sm text-zinc-600 dark:text-zinc-300 mb-1">单次会话最大工具调用数</label>
-                            <input type="text" x-model="agentToolCallLimitInput" inputmode="numeric" pattern="[0-9]*"
-                                   @blur="commitAgentAdvancedInputs()"
-                                   class="w-32 px-3 py-2 bg-zinc-900/[0.03] dark:bg-zinc-800/80 border-2 border-zinc-200/80 dark:border-zinc-700/80 rounded-neo outline-none text-sm text-zinc-800 dark:text-zinc-100 focus:border-brand dark:focus:border-brand-400">
-                            <p class="text-xs text-zinc-400 dark:text-zinc-500 mt-1">范围 10-200，默认 50</p>
-                          </div>
-                          
-                          <div>
-                            <label class="block text-sm text-zinc-600 dark:text-zinc-300 mb-1">工具输出最大字符数</label>
-                            <input type="text" x-model="agentMaxValueCharsInput" inputmode="numeric" pattern="[0-9]*"
-                                   @blur="commitAgentAdvancedInputs()"
-                                   class="w-32 px-3 py-2 bg-zinc-900/[0.03] dark:bg-zinc-800/80 border-2 border-zinc-200/80 dark:border-zinc-700/80 rounded-neo outline-none text-sm text-zinc-800 dark:text-zinc-100 focus:border-brand dark:focus:border-brand-400">
-                            <p class="text-xs text-zinc-400 dark:text-zinc-500 mt-1">范围 10000-500000，默认 80000</p>
-                          </div>
-                          
-                          <div>
-                            <label class="block text-sm text-zinc-600 dark:text-zinc-300 mb-1">技能自动匹配数量上限</label>
-                            <input type="text" x-model="agentSkillAutoMatchLimitInput" inputmode="numeric" pattern="[0-9]*"
-                                   @blur="commitAgentAdvancedInputs()"
-                                   class="w-32 px-3 py-2 bg-zinc-900/[0.03] dark:bg-zinc-800/80 border-2 border-zinc-200/80 dark:border-zinc-700/80 rounded-neo outline-none text-sm text-zinc-800 dark:text-zinc-100 focus:border-brand dark:focus:border-brand-400">
-                            <p class="text-xs text-zinc-400 dark:text-zinc-500 mt-1">范围 0-10，默认 3（0 表示禁用自动匹配）</p>
-                          </div>
+                          ${getRangeControlHTML({
+                            label: '单次会话最大工具调用数',
+                            model: 'agentToolCallLimitInput',
+                            min: 10,
+                            max: 200,
+                            step: 5,
+                            commit: 'commitAgentAdvancedInputs()',
+                            hint: '范围 10-200，默认 50',
+                          })}
+
+                          ${getRangeControlHTML({
+                            label: '工具输出最大字符数',
+                            model: 'agentMaxValueCharsInput',
+                            min: 10000,
+                            max: 500000,
+                            step: 10000,
+                            commit: 'commitAgentAdvancedInputs()',
+                            hint: '范围 10000-500000，默认 80000',
+                          })}
+
+                          ${getRangeControlHTML({
+                            label: '技能自动匹配数量上限',
+                            model: 'agentSkillAutoMatchLimitInput',
+                            min: 0,
+                            max: 10,
+                            step: 1,
+                            commit: 'commitAgentAdvancedInputs()',
+                            hint: '范围 0-10，默认 3（0 表示禁用自动匹配）',
+                          })}
                         </div>
                       </div>
                     </div>
@@ -1391,25 +1412,130 @@ export function getModalEnhancedHTML() {
                         </template>
                       </div>
                       
-                      <div class="flex items-center gap-3">
-                        <div class="relative flex-1">
-                          <input type="text" 
-                                 x-model="customHex"
-                                 @input.debounce.300ms="validateCustomHex()"
-                                 placeholder="#7c3aed"
-                                 maxlength="7"
-                                 :class="customHexError ? 'border-danger dark:border-danger' : 'border-zinc-200 dark:border-zinc-600'"
-                                  class="w-full px-4 py-2.5 bg-zinc-50 dark:bg-zinc-900 border rounded-neo  focus:border-zinc-300 dark:focus:border-zinc-500 outline-none  text-sm font-mono text-zinc-800 dark:text-zinc-100">
-                          <div x-show="customHex && !customHexError"
-                               :style="{ backgroundColor: customHex }"
-                               class="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full border border-zinc-300 dark:border-zinc-600 shadow-sm">
+                      <div @keydown.escape.window="closeCustomPicker()">
+                        <div class="rounded-neo border border-zinc-200/80 dark:border-zinc-700/80 bg-zinc-50/80 dark:bg-zinc-900/70 p-3 shadow-neo-inset dark:shadow-neo-inset-dark">
+                          <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+                            <button type="button"
+                                    @click="toggleCustomPicker()"
+                                    :class="customPickerOpen ? 'border-brand-300 dark:border-brand-500 bg-brand-50/45 dark:bg-brand-900/20' : 'border-zinc-200/80 dark:border-zinc-700/80 bg-white/80 dark:bg-zinc-800/80 hover:border-brand-300 dark:hover:border-brand-500'"
+                                    class="group flex h-14 w-full items-center gap-3 rounded-neo border px-3 text-left  sm:w-48">
+                              <span class="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-zinc-200 dark:border-zinc-600 shadow-sm overflow-hidden"
+                                    :style="{ backgroundColor: customColorPickerValue }">
+                                <span class="absolute inset-0 bg-[radial-gradient(circle_at_30%_25%,rgba(255,255,255,0.55),transparent_38%)]"></span>
+                              </span>
+                              <span class="min-w-0">
+                                <span class="block text-sm font-medium text-zinc-700 dark:text-zinc-200">调色盘取色</span>
+                                <span class="block text-xs text-zinc-400 dark:text-zinc-500">点击展开浮窗</span>
+                              </span>
+                            </button>
+
+                            <div class="relative flex-1">
+                              <div class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-400 dark:text-zinc-500">HEX</div>
+                              <input type="text"
+                                     x-model="customHex"
+                                     @input.debounce.300ms="validateCustomHex()"
+                                     placeholder="#RRGGBB"
+                                     maxlength="7"
+                                     :class="customHexError ? 'border-danger dark:border-danger' : 'border-zinc-200/80 dark:border-zinc-700/80 focus:border-brand-300 dark:focus:border-brand-500'"
+                                     class="w-full rounded-neo border bg-white/80 dark:bg-zinc-800/80 py-3 pl-14 pr-14 outline-none text-sm font-mono uppercase tracking-wide text-zinc-800 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500">
+                              <div x-show="customHex && !customHexError"
+                                   :style="{ backgroundColor: customColorPickerValue }"
+                                   class="absolute right-3 top-1/2 h-7 w-7 -translate-y-1/2 rounded-full border border-zinc-200 dark:border-zinc-600 shadow-sm">
+                              </div>
+                            </div>
                           </div>
                         </div>
+
+                        <div x-show="customPickerOpen"
+                             x-transition:enter="transition ease-out duration-150"
+                             x-transition:enter-start="opacity-0"
+                             x-transition:enter-end="opacity-100"
+                             x-transition:leave="transition ease-in duration-100"
+                             x-transition:leave-start="opacity-100"
+                             x-transition:leave-end="opacity-0"
+                             class="fixed inset-0 z-[90] flex items-center justify-center bg-zinc-950/55 px-4 py-6 backdrop-blur-sm"
+                             role="dialog"
+                             aria-modal="true"
+                             aria-label="自定义强调色调色盘"
+                             @click.self="closeCustomPicker()">
+                          <div class="w-full max-w-xl rounded-neo-lg border border-zinc-200/80 dark:border-zinc-700/80 bg-white/95 dark:bg-zinc-900/95 p-5 shadow-neo-lift dark:shadow-neo-lift-dark">
+                            <div class="flex items-start justify-between gap-4 mb-4">
+                              <div>
+                                <p class="text-base font-semibold text-zinc-800 dark:text-zinc-100">自定义强调色</p>
+                                <p class="text-xs text-zinc-400 dark:text-zinc-500">拖拽色板精确取色，或直接输入色值</p>
+                              </div>
+                              <div class="flex items-center gap-2">
+                                <div class="flex items-center gap-2 rounded-full border border-zinc-200/80 dark:border-zinc-700/80 bg-zinc-50 dark:bg-zinc-800 px-2.5 py-1.5">
+                                  <span class="h-4 w-4 rounded-full border border-zinc-200 dark:border-zinc-600" :style="{ backgroundColor: customColorPickerValue }"></span>
+                                  <span class="font-mono text-xs text-zinc-600 dark:text-zinc-300" x-text="customColorPickerValue"></span>
+                                </div>
+                                <button type="button"
+                                        @click="closeCustomPicker()"
+                                        class="rounded-full p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+                                        aria-label="关闭调色盘">
+                                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              </div>
+                            </div>
+
+                            <div class="relative h-64 cursor-crosshair overflow-hidden rounded-neo border border-zinc-200 dark:border-zinc-700 shadow-inner"
+                                 :style="customPickerPanelStyle"
+                                 @pointerdown.prevent="startCustomPanelDrag($event)">
+                              <span class="absolute h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-[0_0_0_1px_rgba(24,24,27,0.45),0_2px_8px_rgba(0,0,0,0.35)]"
+                                    :style="customPickerCursorStyle"></span>
+                            </div>
+
+                            <div class="mt-5 grid gap-4 sm:grid-cols-[minmax(0,1fr)_12rem]">
+                              <div class="space-y-4">
+                                <div class="flex items-center gap-3">
+                                  <div class="h-12 w-12 shrink-0 rounded-full border border-zinc-200 dark:border-zinc-700 shadow-sm" :style="{ backgroundColor: customColorPickerValue }"></div>
+                                  <div class="relative h-4 flex-1 cursor-pointer rounded-full border border-zinc-200/80 dark:border-zinc-700/80 bg-[linear-gradient(to_right,rgb(239_68_68),rgb(245_158_11),rgb(132_204_22),rgb(20_184_166),rgb(59_130_246),rgb(168_85_247),rgb(239_68_68))]"
+                                       @pointerdown.prevent="startCustomHueDrag($event)">
+                                    <span class="absolute top-1/2 h-5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-zinc-900 shadow-sm"
+                                          :style="customPickerHueStyle"></span>
+                                  </div>
+                                </div>
+                                <div>
+                                  <label class="mb-1 block text-xs font-medium text-zinc-500 dark:text-zinc-400">HEX</label>
+                                  <input type="text"
+                                         x-model="customHex"
+                                         @input.debounce.250ms="validateCustomHex()"
+                                         maxlength="7"
+                                         placeholder="#RRGGBB"
+                                         class="w-full rounded-neo border border-zinc-200/80 dark:border-zinc-700/80 bg-zinc-50 dark:bg-zinc-800 px-3 py-2 font-mono text-sm uppercase tracking-wide text-zinc-800 dark:text-zinc-100 outline-none focus:border-brand-300 dark:focus:border-brand-500">
+                                </div>
+                              </div>
+
+                              <div class="grid grid-cols-3 gap-2 sm:grid-cols-1">
+                                <template x-for="channel in ['r', 'g', 'b']" :key="channel">
+                                  <label class="block">
+                                    <span class="mb-1 block text-xs font-medium uppercase text-zinc-500 dark:text-zinc-400" x-text="channel"></span>
+                                    <input type="number"
+                                           min="0"
+                                           max="255"
+                                           :value="customRgb[channel]"
+                                           @input="updateCustomRgb(channel, $event.target.value)"
+                                           class="w-full rounded-neo border border-zinc-200/80 dark:border-zinc-700/80 bg-zinc-50 dark:bg-zinc-800 px-2 py-2 text-center text-sm text-zinc-800 dark:text-zinc-100 outline-none focus:border-brand-300 dark:focus:border-brand-500">
+                                  </label>
+                                </template>
+                              </div>
+                            </div>
+
+                            <div class="mt-5 flex justify-end">
+                              <button type="button"
+                                      @click="closeCustomPicker()"
+                                      class="rounded-neo bg-brand-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm  hover:bg-brand-500">
+                                完成
+                              </button>
+                            </div>
+                        </div>
                       </div>
-                      
-                      <p x-show="customHexError" class="text-xs text-danger dark:text-danger-light mt-1" x-text="customHexError"></p>
+
+                      <p x-show="customHexError" class="text-xs text-danger dark:text-danger-light mt-2" x-text="customHexError"></p>
                       <p class="text-xs text-zinc-400 dark:text-zinc-500 mt-2">
-                        选择预设颜色或输入自定义十六进制色值 (如 #7c3aed)
+                        选择预设颜色、使用调色盘，或直接输入 #RRGGBB 格式的十六进制色值
                       </p>
                     </div>
                   </div>
@@ -1618,15 +1744,16 @@ export function getModalEnhancedHTML() {
                               ></textarea>
                             </div>
                             
-                            <div class="flex items-center gap-6">
-                              <div class="flex items-center gap-2">
-                                <label class="text-xs text-zinc-600 dark:text-zinc-400">并发数:</label>
-                                <input type="text" x-model="concurrencyInput" inputmode="numeric" pattern="[1-5]"
-                                       @blur="commitConcurrency()"
-                                       @keydown.enter.prevent="commitConcurrency(); $event.target.blur()"
-                                       class="w-16 bg-zinc-900/[0.03] dark:bg-zinc-800/80 border-2 border-zinc-200/80 dark:border-zinc-700/80 rounded-neo px-2 py-1 text-xs text-center text-zinc-700 dark:text-zinc-200 outline-none   focus:border-brand dark:focus:border-brand-400">
-                              </div>
-                            </div>
+                            ${getRangeControlHTML({
+                              label: '并发数',
+                              model: 'concurrencyInput',
+                              min: 1,
+                              max: 5,
+                              step: 1,
+                              commit: 'commitConcurrency()',
+                              hint: '范围 1-5',
+                              inputClass: 'range-value-input w-16 py-1.5 text-xs',
+                            })}
                             
                             <template x-if="batchProgress">
                               <div class="bg-brand-50 dark:bg-zinc-800/80 rounded-neo p-4">
@@ -1732,7 +1859,7 @@ export function getModalEnhancedHTML() {
                             <div class="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400 ml-1">
                               <button type="button" @click="rememberServer = !rememberServer; syncSettings(true)"
                                       :class="getCompactToggleClass(rememberServer)"
-                                      class="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold rounded-neo border  active:scale-95 focus:outline-none focus:ring-0 focus:ring-offset-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0">
+                                      class="pill-toggle items-center gap-1.5 px-3 py-1.5 text-xs font-bold">
                                 <svg x-show="rememberServer" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                                   <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
@@ -1740,7 +1867,7 @@ export function getModalEnhancedHTML() {
                               </button>
                               <button type="button" @click="autoConnect = !autoConnect; syncSettings(true)"
                                       :class="getCompactToggleClass(autoConnect)"
-                                      class="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold rounded-neo border  active:scale-95 focus:outline-none focus:ring-0 focus:ring-offset-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0">
+                                      class="pill-toggle items-center gap-1.5 px-3 py-1.5 text-xs font-bold">
                                 <svg x-show="autoConnect" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                                   <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
@@ -1749,97 +1876,93 @@ export function getModalEnhancedHTML() {
                             </div>
                           </div>
 
-                          <div class="space-y-4">
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                              <div class="space-y-1.5">
-                                <div class="flex items-center justify-between">
-                                  <label class="text-xs font-bold text-zinc-700 dark:text-zinc-300 ml-1">Bearer Token</label>
-                                  <button type="button" @click="saveToken = !saveToken; syncSettings(true)"
-                                          :class="getCompactToggleClass(saveToken)"
-                                          class="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold rounded-neo border  active:scale-95 focus:outline-none focus:ring-0 focus:ring-offset-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0">
-                                    <svg x-show="saveToken" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                      <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-                                    </svg>
-                                    <span>记住</span>
-                                  </button>
-                                </div>
-                                <input 
-                                  type="text" 
-                                  x-model="bearerToken"
-                                  @input.debounce.300ms="syncSettings(true)"
-                                  placeholder="Authorization 头的值..."
-                                  class="w-full bg-zinc-900/[0.03] dark:bg-zinc-800/80 border-2 border-zinc-200/80 dark:border-zinc-700/80  focus:border-brand dark:focus:border-brand-400 rounded-neo px-3 py-1.5   text-xs font-mono text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500"
-                                >
-                                <p class="text-[11px] text-zinc-400 dark:text-zinc-500 ml-1 leading-tight">用于接口授权（Authorization: Bearer ...），缺失可能导致请求被拒绝。</p>
+                          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            <div class="rounded-neo-lg border border-zinc-200/80 bg-zinc-50/80 p-4 shadow-sm dark:border-zinc-600/70 dark:bg-zinc-800/60">
+                              <div class="mb-3 flex items-center justify-between gap-3">
+                                <label class="text-sm font-bold text-zinc-800 dark:text-zinc-100">Bearer Token</label>
+                                <button type="button" @click="saveToken = !saveToken; syncSettings(true)"
+                                        :class="getCompactToggleClass(saveToken)"
+                                        class="pill-toggle min-w-[74px] gap-1.5 px-3 py-1.5 text-xs font-bold">
+                                  <svg x-show="saveToken" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                  </svg>
+                                  <span>记住</span>
+                                </button>
                               </div>
-
-                              <div class="space-y-1.5">
-                                <div class="flex items-center justify-between">
-                                  <label class="text-xs font-bold text-zinc-700 dark:text-zinc-300 ml-1">Cookies</label>
-                                  <button type="button" @click="saveCookie = !saveCookie; syncSettings(true)"
-                                          :class="getCompactToggleClass(saveCookie)"
-                                          class="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold rounded-neo border  active:scale-95 focus:outline-none focus:ring-0 focus:ring-offset-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0">
-                                    <svg x-show="saveCookie" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                      <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-                                    </svg>
-                                    <span>记住</span>
-                                  </button>
-                                </div>
-                                <input 
-                                  type="text" 
-                                  x-model="cookies"
-                                  @input.debounce.300ms="syncSettings(true)"
-                                  placeholder="cf_clearance=..."
-                                  class="w-full bg-zinc-900/[0.03] dark:bg-zinc-800/80 border-2 border-zinc-200/80 dark:border-zinc-700/80  focus:border-brand dark:focus:border-brand-400 rounded-neo px-3 py-1.5   text-xs font-mono text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500"
-                                >
-                                <p class="text-[11px] text-zinc-400 dark:text-zinc-500 ml-1 leading-tight">用于通过 Cloudflare 验证（cf_clearance），需与签发该 Cookie 的浏览器 UA 与 IP 完全一致。</p>
-                              </div>
+                              <input
+                                type="text"
+                                x-model="bearerToken"
+                                @input.debounce.300ms="syncSettings(true)"
+                                placeholder="Authorization 头的值..."
+                                class="w-full min-h-11 rounded-neo border-2 border-zinc-300 bg-white px-4 py-2.5 text-sm font-mono text-zinc-900 shadow-neo-inset outline-none transition-all placeholder-zinc-400 focus:border-brand focus:ring-0 focus:shadow-[0_0_0_3px_rgba(132,204,22,0.14)] dark:border-zinc-600 dark:bg-zinc-900/55 dark:text-zinc-100 dark:placeholder-zinc-500 dark:shadow-neo-inset-dark dark:focus:border-brand-400 dark:focus:ring-0 dark:focus:shadow-[0_0_0_3px_rgba(132,204,22,0.16)]"
+                              >
+                              <p class="mt-2 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">用于接口授权（Authorization: Bearer ...），缺失可能导致请求被拒绝。</p>
                             </div>
 
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                              <div class="space-y-1.5">
-                                <div class="flex items-center justify-between">
-                                  <label class="text-xs font-bold text-zinc-700 dark:text-zinc-300 ml-1">User Agent</label>
-                                  <button type="button" @click="saveUserAgent = !saveUserAgent; syncSettings(true)"
-                                          :class="getCompactToggleClass(saveUserAgent)"
-                                          class="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold rounded-neo border  active:scale-95 focus:outline-none focus:ring-0 focus:ring-offset-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0">
-                                    <svg x-show="saveUserAgent" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                      <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-                                    </svg>
-                                    <span>记住</span>
-                                  </button>
-                                </div>
-                                <input
-                                  type="text"
-                                  x-model="userAgent"
-                                  @input.debounce.300ms="syncSettings(true)"
-                                  placeholder="Mozilla/5.0 ..."
-                                  class="w-full bg-zinc-900/[0.03] dark:bg-zinc-800/80 border-2 border-zinc-200/80 dark:border-zinc-700/80  focus:border-brand dark:focus:border-brand-400 rounded-neo px-3 py-1.5   text-xs font-mono text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500"
-                                >
-                                <p class="text-[11px] text-zinc-400 dark:text-zinc-500 ml-1 leading-tight">用于绑定浏览器标识，需与获取 cf_clearance 的 UA 完全一致。</p>
+                            <div class="rounded-neo-lg border border-zinc-200/80 bg-zinc-50/80 p-4 shadow-sm dark:border-zinc-600/70 dark:bg-zinc-800/60">
+                              <div class="mb-3 flex items-center justify-between gap-3">
+                                <label class="text-sm font-bold text-zinc-800 dark:text-zinc-100">Cookies</label>
+                                <button type="button" @click="saveCookie = !saveCookie; syncSettings(true)"
+                                        :class="getCompactToggleClass(saveCookie)"
+                                        class="pill-toggle min-w-[74px] gap-1.5 px-3 py-1.5 text-xs font-bold">
+                                  <svg x-show="saveCookie" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                  </svg>
+                                  <span>记住</span>
+                                </button>
                               </div>
+                              <input
+                                type="text"
+                                x-model="cookies"
+                                @input.debounce.300ms="syncSettings(true)"
+                                placeholder="cf_clearance=..."
+                                class="w-full min-h-11 rounded-neo border-2 border-zinc-300 bg-white px-4 py-2.5 text-sm font-mono text-zinc-900 shadow-neo-inset outline-none transition-all placeholder-zinc-400 focus:border-brand focus:ring-0 focus:shadow-[0_0_0_3px_rgba(132,204,22,0.14)] dark:border-zinc-600 dark:bg-zinc-900/55 dark:text-zinc-100 dark:placeholder-zinc-500 dark:shadow-neo-inset-dark dark:focus:border-brand-400 dark:focus:ring-0 dark:focus:shadow-[0_0_0_3px_rgba(132,204,22,0.16)]"
+                              >
+                              <p class="mt-2 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">用于通过 Cloudflare 验证（cf_clearance），需与签发该 Cookie 的浏览器 UA 与 IP 完全一致。</p>
+                            </div>
 
-                              <div class="space-y-1.5">
-                                <div class="flex items-center justify-between">
-                                  <label class="text-xs font-bold text-zinc-700 dark:text-zinc-300 ml-1">Gemini API Key</label>
-                                  <button type="button" @click="saveGeminiApiKey = !saveGeminiApiKey; syncSettings(true)"
-                                          :class="getCompactToggleClass(saveGeminiApiKey)"
-                                          class="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold rounded-neo border  active:scale-95 focus:outline-none focus:ring-0 focus:ring-offset-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0">
-                                    <svg x-show="saveGeminiApiKey" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                      <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-                                    </svg>
-                                    <span>记住</span>
-                                  </button>
-                                </div>
-                                <input
-                                  type="text"
-                                  x-model="geminiApiKey"
-                                  @input.debounce.300ms="syncSettings(true)"
-                                  placeholder="AIzaSy..."
-                                  class="w-full bg-zinc-900/[0.03] dark:bg-zinc-800/80 border-2 border-zinc-200/80 dark:border-zinc-700/80  focus:border-brand dark:focus:border-brand-400 rounded-neo px-3 py-1.5   text-xs font-mono text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500"
-                                >
-                                <p class="text-[11px] text-zinc-400 dark:text-zinc-500 ml-1 leading-tight">用于切换 Gemini 2.5 Flash，隐藏设定提取更稳定、速度更快。</p>
+                            <div class="rounded-neo-lg border border-zinc-200/80 bg-zinc-50/80 p-4 shadow-sm dark:border-zinc-600/70 dark:bg-zinc-800/60">
+                              <div class="mb-3 flex items-center justify-between gap-3">
+                                <label class="text-sm font-bold text-zinc-800 dark:text-zinc-100">User Agent</label>
+                                <button type="button" @click="saveUserAgent = !saveUserAgent; syncSettings(true)"
+                                        :class="getCompactToggleClass(saveUserAgent)"
+                                        class="pill-toggle min-w-[74px] gap-1.5 px-3 py-1.5 text-xs font-bold">
+                                  <svg x-show="saveUserAgent" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                  </svg>
+                                  <span>记住</span>
+                                </button>
                               </div>
+                              <input
+                                type="text"
+                                x-model="userAgent"
+                                @input.debounce.300ms="syncSettings(true)"
+                                placeholder="Mozilla/5.0 ..."
+                                class="w-full min-h-11 rounded-neo border-2 border-zinc-300 bg-white px-4 py-2.5 text-sm font-mono text-zinc-900 shadow-neo-inset outline-none transition-all placeholder-zinc-400 focus:border-brand focus:ring-0 focus:shadow-[0_0_0_3px_rgba(132,204,22,0.14)] dark:border-zinc-600 dark:bg-zinc-900/55 dark:text-zinc-100 dark:placeholder-zinc-500 dark:shadow-neo-inset-dark dark:focus:border-brand-400 dark:focus:ring-0 dark:focus:shadow-[0_0_0_3px_rgba(132,204,22,0.16)]"
+                              >
+                              <p class="mt-2 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">用于绑定浏览器标识，需与获取 cf_clearance 的 UA 完全一致。</p>
+                            </div>
+
+                            <div class="rounded-neo-lg border border-zinc-200/80 bg-zinc-50/80 p-4 shadow-sm dark:border-zinc-600/70 dark:bg-zinc-800/60">
+                              <div class="mb-3 flex items-center justify-between gap-3">
+                                <label class="text-sm font-bold text-zinc-800 dark:text-zinc-100">Gemini API Key</label>
+                                <button type="button" @click="saveGeminiApiKey = !saveGeminiApiKey; syncSettings(true)"
+                                        :class="getCompactToggleClass(saveGeminiApiKey)"
+                                        class="pill-toggle min-w-[74px] gap-1.5 px-3 py-1.5 text-xs font-bold">
+                                  <svg x-show="saveGeminiApiKey" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                  </svg>
+                                  <span>记住</span>
+                                </button>
+                              </div>
+                              <input
+                                type="text"
+                                x-model="geminiApiKey"
+                                @input.debounce.300ms="syncSettings(true)"
+                                placeholder="AIzaSy..."
+                                class="w-full min-h-11 rounded-neo border-2 border-zinc-300 bg-white px-4 py-2.5 text-sm font-mono text-zinc-900 shadow-neo-inset outline-none transition-all placeholder-zinc-400 focus:border-brand focus:ring-0 focus:shadow-[0_0_0_3px_rgba(132,204,22,0.14)] dark:border-zinc-600 dark:bg-zinc-900/55 dark:text-zinc-100 dark:placeholder-zinc-500 dark:shadow-neo-inset-dark dark:focus:border-brand-400 dark:focus:ring-0 dark:focus:shadow-[0_0_0_3px_rgba(132,204,22,0.16)]"
+                              >
+                              <p class="mt-2 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">用于切换 Gemini 2.5 Flash，隐藏设定提取更稳定、速度更快。</p>
                             </div>
                           </div>
                         </div>
@@ -2055,8 +2178,8 @@ export function getModalEnhancedHTML() {
                     <div class="flex items-center gap-1.5 py-1.5">
                       <!-- 启用 toggle -->
                       <button @click="entry.enabled = !entry.enabled" type="button"
-                              :class="entry.enabled ? 'bg-brand dark:bg-brand-600 text-white border-brand dark:border-brand-600 shadow-sm' : 'bg-white dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-600 hover:border-zinc-300 dark:hover:border-zinc-500'"
-                              class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-neo border ">
+                              :class="entry.enabled ? 'pill-toggle-active' : 'pill-toggle-inactive'"
+                              class="pill-toggle gap-1 px-2.5 py-1 text-xs font-medium">
                         <svg x-show="entry.enabled" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                           <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
                         </svg>
@@ -2064,8 +2187,8 @@ export function getModalEnhancedHTML() {
                       </button>
                       <!-- Constant toggle -->
                       <button @click="entry.constant = !entry.constant" type="button"
-                              :class="entry.constant ? 'bg-brand dark:bg-brand-600 text-white border-brand dark:border-brand-600 shadow-sm' : 'bg-white dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-600 hover:border-zinc-300 dark:hover:border-zinc-500'"
-                              class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-neo border ">
+                              :class="entry.constant ? 'pill-toggle-active' : 'pill-toggle-inactive'"
+                              class="pill-toggle gap-1 px-2.5 py-1 text-xs font-medium">
                         <svg x-show="entry.constant" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                           <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
                         </svg>
@@ -2073,8 +2196,8 @@ export function getModalEnhancedHTML() {
                       </button>
                       <!-- Selective toggle -->
                       <button @click="entry.selective = !entry.selective" type="button"
-                              :class="entry.selective ? 'bg-brand dark:bg-brand-600 text-white border-brand dark:border-brand-600 shadow-sm' : 'bg-white dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-600 hover:border-zinc-300 dark:hover:border-zinc-500'"
-                              class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-neo border ">
+                              :class="entry.selective ? 'pill-toggle-active' : 'pill-toggle-inactive'"
+                              class="pill-toggle gap-1 px-2.5 py-1 text-xs font-medium">
                         <svg x-show="entry.selective" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                           <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
                         </svg>
@@ -2106,16 +2229,16 @@ export function getModalEnhancedHTML() {
                         <div class="grid grid-cols-1 lg:grid-cols-[auto_auto_auto_1fr] gap-3 items-end">
                           <div class="flex flex-wrap items-center gap-1.5 pt-5">
                             <button @click="entry.case_sensitive = !entry.case_sensitive" type="button"
-                                    :class="entry.case_sensitive ? 'bg-brand dark:bg-brand-600 text-white border-brand dark:border-brand-600' : 'bg-white dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-600 hover:border-zinc-300 dark:hover:border-zinc-500'"
-                                     class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-neo border ">
+                                    :class="entry.case_sensitive ? 'pill-toggle-active' : 'pill-toggle-inactive'"
+                                     class="pill-toggle gap-1 px-2 py-1 text-xs font-medium">
                               <svg x-show="entry.case_sensitive" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
                               </svg>
                               <span>区分大小写</span>
                             </button>
                             <button @click="entry.use_regex = !entry.use_regex" type="button"
-                                    :class="entry.use_regex ? 'bg-brand dark:bg-brand-600 text-white border-brand dark:border-brand-600' : 'bg-white dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-600 hover:border-zinc-300 dark:hover:border-zinc-500'"
-                                     class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-neo border ">
+                                    :class="entry.use_regex ? 'pill-toggle-active' : 'pill-toggle-inactive'"
+                                     class="pill-toggle gap-1 px-2 py-1 text-xs font-medium">
                               <svg x-show="entry.use_regex" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
                               </svg>

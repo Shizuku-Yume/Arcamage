@@ -1,8 +1,12 @@
 export const DEFAULT_SUPPLIER_PROVIDER = 'openai-compatible';
 export const DEFAULT_SUPPLIER_API = 'openai-completions';
 export const DEFAULT_SUPPLIER_TRANSPORT = 'direct';
-export const DEFAULT_CONTEXT_WINDOW = 128000;
-export const DEFAULT_MAX_TOKENS = 4096;
+export const MIN_CONTEXT_WINDOW = 65536;
+export const DEFAULT_CONTEXT_WINDOW = 262144;
+export const MAX_CONTEXT_WINDOW = 1048576;
+export const MIN_MAX_TOKENS = 4096;
+export const DEFAULT_MAX_TOKENS = 65536;
+export const MAX_MAX_TOKENS = 262144;
 export const DEFAULT_MODEL_TEMPERATURE = 1.0;
 
 function isPlainObject(value) {
@@ -28,10 +32,10 @@ function normalizeString(value, fallback = '') {
   return trimmed || fallback;
 }
 
-function normalizePositiveInteger(value, fallback) {
+function normalizeIntegerRange(value, fallback, min, max) {
   const numeric = Number(value);
-  if (!Number.isFinite(numeric) || numeric <= 0) return fallback;
-  return Math.floor(numeric);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Math.min(max, Math.max(min, Math.floor(numeric)));
 }
 
 export function normalizeSupplierModels(models) {
@@ -87,8 +91,8 @@ export function normalizeSupplierConfig(raw = {}) {
     compat,
     headers: clonePlainObject(raw?.headers),
     reasoning: raw?.reasoning === true,
-    contextWindow: normalizePositiveInteger(raw?.contextWindow, DEFAULT_CONTEXT_WINDOW),
-    maxTokens: normalizePositiveInteger(raw?.maxTokens, DEFAULT_MAX_TOKENS),
+    contextWindow: normalizeIntegerRange(raw?.contextWindow, DEFAULT_CONTEXT_WINDOW, MIN_CONTEXT_WINDOW, MAX_CONTEXT_WINDOW),
+    maxTokens: normalizeIntegerRange(raw?.maxTokens, DEFAULT_MAX_TOKENS, MIN_MAX_TOKENS, MAX_MAX_TOKENS),
     availableModels: normalizeSupplierModels(raw?.availableModels || raw?.models),
     baseUrl: normalizeString(raw?.baseUrl ?? raw?.base_url, ''),
     apiKey: typeof (raw?.apiKey ?? raw?.api_key) === 'string' ? (raw?.apiKey ?? raw?.api_key) : '',

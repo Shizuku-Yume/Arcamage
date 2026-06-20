@@ -57,8 +57,10 @@ export function cardPreviewSidebar() {
     isMultiline: false,
     greetingMenuOpen: false,
     frameHeights: {},
+    draftUserName: DEFAULT_USER_NAME,
 
     init() {
+      this.syncUserNameDraft();
       this.syncGreetingSelection();
       runtime.ensureGreeting();
     },
@@ -145,9 +147,16 @@ export function cardPreviewSidebar() {
       this.restartConversation();
     },
 
-    changeUserName(value) {
+    syncUserNameDraft() {
+      this.draftUserName = this.preview?.userName || DEFAULT_USER_NAME;
+    },
+
+    commitUserName(value = this.draftUserName) {
       if (!this.preview) return;
-      this.preview.userName = normalizeUserName(value);
+      const nextUserName = normalizeUserName(value);
+      this.draftUserName = nextUserName;
+      if (this.preview.userName === nextUserName) return;
+      this.preview.userName = nextUserName;
       this.restartConversation();
     },
 
@@ -344,7 +353,7 @@ export function getCardPreviewSidebarHTML() {
           </div>
           <label class="block min-w-0">
             <span class="text-xs text-zinc-500 dark:text-zinc-400 block mb-1">用户名称</span>
-            <input :value="preview.userName" @input="preview.userName = $event.target.value" @change="changeUserName($event.target.value)" class="w-full rounded-neo border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 px-2.5 py-1.5 text-xs text-zinc-600 dark:text-zinc-200" placeholder="user">
+            <input x-model="draftUserName" @change="commitUserName($event.target.value)" @keydown.enter.prevent="commitUserName($event.target.value); $event.target.blur()" class="w-full rounded-neo border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 px-2.5 py-1.5 text-xs text-zinc-600 dark:text-zinc-200" placeholder="user">
           </label>
         </div>
         <p x-show="preview.error" x-cloak class="mt-2 rounded-neo border border-danger bg-danger-light text-danger px-3 py-2 text-xs break-anywhere" x-text="preview.error"></p>

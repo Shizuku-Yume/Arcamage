@@ -180,7 +180,7 @@ export function registerFerryStagingComponent() {
 
 export function getFerryStagingHTML() {
   return `
-    <div x-data="ferryStaging()" class="h-full flex flex-col">
+    <div x-data="ferryStaging()" class="h-full min-h-[calc(74dvh-9rem)] flex flex-col">
       <div class="flex items-center justify-between p-4 border-b border-zinc-100 dark:border-zinc-700">
         <div class="flex items-center gap-3">
           <h3 class="font-bold text-zinc-800 dark:text-zinc-200">
@@ -220,9 +220,9 @@ export function getFerryStagingHTML() {
         </div>
       </div>
       
-      <div class="flex-1 overflow-y-auto p-4 custom-scrollbar">
+      <div class="flex-1 min-h-0 overflow-y-auto p-4 custom-scrollbar">
         <template x-if="!hasCards">
-          <div class="flex flex-col items-center justify-center h-full text-zinc-400 dark:text-zinc-500 animate-fade-in-up">
+          <div class="flex min-h-[min(58dvh,560px)] flex-col items-center justify-center text-zinc-400 dark:text-zinc-500 animate-fade-in-up">
             <svg class="w-16 h-16 mb-4 text-zinc-200 dark:text-zinc-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
             </svg>

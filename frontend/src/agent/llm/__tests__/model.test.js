@@ -17,8 +17,8 @@ describe('llm model config', () => {
     expect(supplier.transport).toBe('arcamage-proxy');
     expect(supplier.useProxy).toBe(true);
     expect(supplier.temperature).toBe(2);
-    expect(supplier.contextWindow).toBe(128000);
-    expect(supplier.maxTokens).toBe(4096);
+    expect(supplier.contextWindow).toBe(262144);
+    expect(supplier.maxTokens).toBe(65536);
     expect(supplier.compat.supportsDeveloperRole).toBe(false);
   });
 
@@ -44,6 +44,18 @@ describe('llm model config', () => {
     ]);
   });
 
+  it('clamps supplier context and output token ranges', () => {
+    expect(normalizeSupplierConfig({ contextWindow: 1, maxTokens: 1 })).toMatchObject({
+      contextWindow: 65536,
+      maxTokens: 4096,
+    });
+
+    expect(normalizeSupplierConfig({ contextWindow: 2000000, maxTokens: 500000 })).toMatchObject({
+      contextWindow: 1048576,
+      maxTokens: 262144,
+    });
+  });
+
   it('maps supplier config to a provider-neutral model object', () => {
     expect(supplierToModel({ model: 'model-x', provider: 'openrouter' })).toMatchObject({
       id: 'model-x',
@@ -51,8 +63,8 @@ describe('llm model config', () => {
       provider: 'openrouter',
       api: 'openai-completions',
       input: ['text'],
-      contextWindow: 128000,
-      maxTokens: 4096,
+      contextWindow: 262144,
+      maxTokens: 65536,
     });
   });
 

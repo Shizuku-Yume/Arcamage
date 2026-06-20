@@ -9,7 +9,12 @@ import { getAccentShades, applyAccentToDOM } from './utils/accent_colors.js';
 import { hashBytes } from './agent/crypto_utils.js';
 import { loadSkillPreferenceState } from './agent/skill_manager.js';
 import { createEmptySkillContextMeta } from './agent/skill_context.js';
-import { normalizeSupplierConfig, normalizeSupplierModels } from './agent/llm/model.js';
+import {
+  DEFAULT_CONTEXT_WINDOW,
+  DEFAULT_MAX_TOKENS,
+  normalizeSupplierConfig,
+  normalizeSupplierModels,
+} from './agent/llm/model.js';
 
 // ============================================================
 // 工具函数
@@ -603,8 +608,8 @@ export function initStores() {
     compat: {},
     headers: {},
     reasoning: false,
-    contextWindow: 128000,
-    maxTokens: 4096,
+    contextWindow: DEFAULT_CONTEXT_WINDOW,
+    maxTokens: DEFAULT_MAX_TOKENS,
     availableModels: [],
 
     getConfig() {

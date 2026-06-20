@@ -1,6 +1,7 @@
 import Alpine from 'alpinejs';
 import { getFerryBatchHTML } from './ferry_batch.js';
 import { getFerryStagingHTML } from './ferry_staging.js';
+import { getRangeControlHTML } from './range_control.js';
 
 export function ferryModal(modal) {
   return {
@@ -82,7 +83,7 @@ export function ferryModal(modal) {
         return;
       }
 
-      const clamped = Math.min(5, Math.max(1, parsed));
+      const clamped = Math.min(5, Math.max(1, Math.round(parsed)));
       this.defaultConcurrency = clamped;
       this.defaultConcurrencyInput = String(clamped);
       this.syncSettings(true);
@@ -494,19 +495,19 @@ export function getFerryModalHTML() {
                   <span class="text-xs font-mono text-zinc-500 dark:text-zinc-400" x-text="isConnected ? '已连接 ' + serverVersion : '未连接'"></span>
                 </div>
               </div>
-              <div class="flex gap-2">
-                <input 
-                  type="text" 
+              <div class="flex flex-col sm:flex-row gap-3">
+                <input
+                  type="text"
                   x-model="ferryUrl"
                   @input.debounce.300ms="syncSettings(true)"
                   :disabled="isConnected"
                   placeholder="http://localhost:17236"
-                  class="flex-1 bg-zinc-900/[0.03] dark:bg-zinc-800/80 border-2 border-zinc-200/80 dark:border-zinc-700/80 rounded-neo px-4 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 outline-none   focus:border-brand dark:focus:border-brand-400 disabled:opacity-60 disabled:bg-zinc-100/60 dark:disabled:bg-zinc-800/60 disabled:shadow-none"
+                  class="min-h-12 flex-1 bg-zinc-900/[0.03] dark:bg-zinc-800/80 border-2 border-zinc-200/80 dark:border-zinc-700/80 rounded-neo px-5 py-3 text-base font-semibold text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 outline-none shadow-neo-inset dark:shadow-neo-inset-dark focus:border-brand dark:focus:border-brand-400 disabled:opacity-60 disabled:bg-zinc-100/60 dark:disabled:bg-zinc-800/60 disabled:shadow-none"
                 >
-                <button 
+                <button
                   @click="isConnected ? disconnect() : connect()"
                   :class="isConnected ? 'btn-secondary' : 'btn-primary'"
-                  class="px-4 py-2 text-sm font-bold min-w-[80px]"
+                  class="min-h-12 px-6 py-3 text-base font-bold sm:min-w-[100px]"
                 >
                   <template x-if="isConnecting">
                     <svg class="animate-spin h-4 w-4 mx-auto" fill="none" viewBox="0 0 24 24">
@@ -517,108 +518,110 @@ export function getFerryModalHTML() {
                   <span x-show="!isConnecting" x-text="isConnected ? '断开' : '连接'"></span>
                 </button>
               </div>
-              <div class="flex items-center gap-4 text-xs text-zinc-500 dark:text-zinc-400 ml-1">
-                <label class="flex items-center gap-2">
-                  <input type="checkbox" x-model="rememberServer" @change="syncSettings(true)" class="rounded text-brand focus:ring-0 border-zinc-300 dark:border-zinc-600 dark:bg-zinc-700 w-3 h-3">
-                  记住地址
+              <div class="flex flex-wrap items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400 ml-1 pt-1">
+                <label :class="rememberServer ? 'pill-toggle-active' : 'pill-toggle-inactive'" class="pill-toggle gap-2 px-3 py-1.5 text-xs font-bold">
+                  <input type="checkbox" x-model="rememberServer" @change="syncSettings(true)" class="sr-only">
+                  <svg x-show="rememberServer" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
+                  <span>记住地址</span>
                 </label>
-                <label class="flex items-center gap-2">
-                  <input type="checkbox" x-model="autoConnect" @change="syncSettings(true)" class="rounded text-brand focus:ring-0 border-zinc-300 dark:border-zinc-600 dark:bg-zinc-700 w-3 h-3">
-                  自动连接
+                <label :class="autoConnect ? 'pill-toggle-active' : 'pill-toggle-inactive'" class="pill-toggle gap-2 px-3 py-1.5 text-xs font-bold">
+                  <input type="checkbox" x-model="autoConnect" @change="syncSettings(true)" class="sr-only">
+                  <svg x-show="autoConnect" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
+                  <span>自动连接</span>
                 </label>
               </div>
             </div>
 
             <!-- Credentials Section -->
             <div class="space-y-5">
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
-                <div class="space-y-2">
-                  <div class="flex items-center justify-between">
-                    <label class="text-xs font-bold text-zinc-700 dark:text-zinc-300">Bearer Token</label>
-                    <label class="flex items-center gap-1.5 cursor-pointer">
-                      <input type="checkbox" x-model="saveToken" @change="syncSettings(true)" class="rounded text-brand focus:ring-0 border-zinc-300 dark:border-zinc-600 dark:bg-zinc-700 w-3 h-3">
-                      <span class="text-[11px] text-zinc-400 dark:text-zinc-500">记住</span>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="rounded-neo-lg border border-zinc-200/80 bg-zinc-50/90 p-4 shadow-sm dark:border-zinc-600/70 dark:bg-zinc-800/70">
+                  <div class="mb-3 flex items-center justify-between gap-3">
+                    <label class="text-sm font-bold text-zinc-800 dark:text-zinc-100">Bearer Token</label>
+                    <label :class="saveToken ? 'pill-toggle-active' : 'pill-toggle-inactive'" class="pill-toggle min-w-[74px] gap-1.5 px-3 py-1.5 text-xs font-bold">
+                      <input type="checkbox" x-model="saveToken" @change="syncSettings(true)" class="sr-only">
+                      <svg x-show="saveToken" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
+                      <span x-text="saveToken ? '记住' : '未记住'"></span>
                     </label>
                   </div>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     x-model="bearerToken"
                     @input.debounce.300ms="syncSettings(true)"
-                    placeholder="Bearer ey..."
-                    class="w-full bg-zinc-900/[0.03] dark:bg-zinc-800/80 border-2 border-zinc-200/80 dark:border-zinc-700/80  focus:border-brand dark:focus:border-brand-400 rounded-neo px-4 py-2.5 shadow-neo-inset dark:shadow-neo-inset-dark  text-xs font-mono text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500"
+                    placeholder="Authorization 头的值..."
+                    class="w-full min-h-12 rounded-neo border-2 border-zinc-300 bg-white px-4 py-3 text-sm font-mono text-zinc-900 shadow-neo-inset outline-none transition-all placeholder-zinc-400 focus:border-brand focus:bg-white focus:ring-4 focus:ring-brand/10 dark:border-zinc-600 dark:bg-zinc-900/60 dark:text-zinc-100 dark:placeholder-zinc-500 dark:shadow-neo-inset-dark dark:focus:border-brand-400 dark:focus:bg-zinc-900 dark:focus:ring-brand-400/10"
                   >
-                  <p class="text-[11px] text-zinc-400 dark:text-zinc-500 leading-tight">用于接口授权（Authorization: Bearer ...），缺失可能导致请求被拒绝。</p>
+                  <p class="mt-2 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">用于接口授权（Authorization: Bearer ...），缺失可能导致请求被拒绝。</p>
                 </div>
-                
-                <div class="space-y-2">
-                  <div class="flex items-center justify-between">
-                    <label class="text-xs font-bold text-zinc-700 dark:text-zinc-300">Cookies</label>
-                    <label class="flex items-center gap-1.5 cursor-pointer">
-                      <input type="checkbox" x-model="saveCookie" @change="syncSettings(true)" class="rounded text-brand focus:ring-0 border-zinc-300 dark:border-zinc-600 dark:bg-zinc-700 w-3 h-3">
-                      <span class="text-[11px] text-zinc-400 dark:text-zinc-500">记住</span>
+
+                <div class="rounded-neo-lg border border-zinc-200/80 bg-zinc-50/90 p-4 shadow-sm dark:border-zinc-600/70 dark:bg-zinc-800/70">
+                  <div class="mb-3 flex items-center justify-between gap-3">
+                    <label class="text-sm font-bold text-zinc-800 dark:text-zinc-100">Cookies</label>
+                    <label :class="saveCookie ? 'pill-toggle-active' : 'pill-toggle-inactive'" class="pill-toggle min-w-[74px] gap-1.5 px-3 py-1.5 text-xs font-bold">
+                      <input type="checkbox" x-model="saveCookie" @change="syncSettings(true)" class="sr-only">
+                      <svg x-show="saveCookie" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
+                      <span x-text="saveCookie ? '记住' : '未记住'"></span>
                     </label>
                   </div>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     x-model="cookies"
                     @input.debounce.300ms="syncSettings(true)"
                     placeholder="cf_clearance=..."
-                    class="w-full bg-zinc-900/[0.03] dark:bg-zinc-800/80 border-2 border-zinc-200/80 dark:border-zinc-700/80  focus:border-brand dark:focus:border-brand-400 rounded-neo px-4 py-2.5 shadow-neo-inset dark:shadow-neo-inset-dark  text-xs font-mono text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500"
+                    class="w-full min-h-12 rounded-neo border-2 border-zinc-300 bg-white px-4 py-3 text-sm font-mono text-zinc-900 shadow-neo-inset outline-none transition-all placeholder-zinc-400 focus:border-brand focus:bg-white focus:ring-4 focus:ring-brand/10 dark:border-zinc-600 dark:bg-zinc-900/60 dark:text-zinc-100 dark:placeholder-zinc-500 dark:shadow-neo-inset-dark dark:focus:border-brand-400 dark:focus:bg-zinc-900 dark:focus:ring-brand-400/10"
                   >
-                  <p class="text-[11px] text-zinc-400 dark:text-zinc-500 leading-tight">用于通过 Cloudflare 验证（cf_clearance），需与签发该 Cookie 的浏览器 UA 与 IP 完全一致。</p>
+                  <p class="mt-2 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">用于通过 Cloudflare 验证（cf_clearance），需与签发该 Cookie 的浏览器 UA 与 IP 完全一致。</p>
                 </div>
-              </div>
 
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
-                <div class="space-y-2">
-                  <div class="flex items-center justify-between">
-                    <label class="text-xs font-bold text-zinc-700 dark:text-zinc-300">User Agent</label>
-                    <label class="flex items-center gap-1.5 cursor-pointer">
-                      <input type="checkbox" x-model="saveUserAgent" @change="syncSettings(true)" class="rounded text-brand focus:ring-0 border-zinc-300 dark:border-zinc-600 dark:bg-zinc-700 w-3 h-3">
-                      <span class="text-[11px] text-zinc-400 dark:text-zinc-500">记住</span>
+                <div class="rounded-neo-lg border border-zinc-200/80 bg-zinc-50/90 p-4 shadow-sm dark:border-zinc-600/70 dark:bg-zinc-800/70">
+                  <div class="mb-3 flex items-center justify-between gap-3">
+                    <label class="text-sm font-bold text-zinc-800 dark:text-zinc-100">User Agent</label>
+                    <label :class="saveUserAgent ? 'pill-toggle-active' : 'pill-toggle-inactive'" class="pill-toggle min-w-[74px] gap-1.5 px-3 py-1.5 text-xs font-bold">
+                      <input type="checkbox" x-model="saveUserAgent" @change="syncSettings(true)" class="sr-only">
+                      <svg x-show="saveUserAgent" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
+                      <span x-text="saveUserAgent ? '记住' : '未记住'"></span>
                     </label>
                   </div>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     x-model="userAgent"
                     @input.debounce.300ms="syncSettings(true)"
                     placeholder="Mozilla/5.0 ..."
-                    class="w-full bg-zinc-900/[0.03] dark:bg-zinc-800/80 border-2 border-zinc-200/80 dark:border-zinc-700/80  focus:border-brand dark:focus:border-brand-400 rounded-neo px-4 py-2.5 shadow-neo-inset dark:shadow-neo-inset-dark  text-xs font-mono text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500"
+                    class="w-full min-h-12 rounded-neo border-2 border-zinc-300 bg-white px-4 py-3 text-sm font-mono text-zinc-900 shadow-neo-inset outline-none transition-all placeholder-zinc-400 focus:border-brand focus:bg-white focus:ring-4 focus:ring-brand/10 dark:border-zinc-600 dark:bg-zinc-900/60 dark:text-zinc-100 dark:placeholder-zinc-500 dark:shadow-neo-inset-dark dark:focus:border-brand-400 dark:focus:bg-zinc-900 dark:focus:ring-brand-400/10"
                   >
-                  <p class="text-[11px] text-zinc-400 dark:text-zinc-500 leading-tight">用于绑定浏览器标识，需与获取 cf_clearance 的 UA 完全一致。</p>
+                  <p class="mt-2 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">用于绑定浏览器标识，需与获取 cf_clearance 的 UA 完全一致。</p>
                 </div>
-                
-                <div class="space-y-2">
-                  <div class="flex items-center justify-between">
-                    <label class="text-xs font-bold text-zinc-700 dark:text-zinc-300">Gemini API Key</label>
-                    <label class="flex items-center gap-1.5 cursor-pointer">
-                      <input type="checkbox" x-model="saveGeminiApiKey" @change="syncSettings(true)" class="rounded text-brand focus:ring-0 border-zinc-300 dark:border-zinc-600 dark:bg-zinc-700 w-3 h-3">
-                      <span class="text-[11px] text-zinc-400 dark:text-zinc-500">记住</span>
+
+                <div class="rounded-neo-lg border border-zinc-200/80 bg-zinc-50/90 p-4 shadow-sm dark:border-zinc-600/70 dark:bg-zinc-800/70">
+                  <div class="mb-3 flex items-center justify-between gap-3">
+                    <label class="text-sm font-bold text-zinc-800 dark:text-zinc-100">Gemini API Key</label>
+                    <label :class="saveGeminiApiKey ? 'pill-toggle-active' : 'pill-toggle-inactive'" class="pill-toggle min-w-[74px] gap-1.5 px-3 py-1.5 text-xs font-bold">
+                      <input type="checkbox" x-model="saveGeminiApiKey" @change="syncSettings(true)" class="sr-only">
+                      <svg x-show="saveGeminiApiKey" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
+                      <span x-text="saveGeminiApiKey ? '记住' : '未记住'"></span>
                     </label>
                   </div>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     x-model="geminiApiKey"
                     @input.debounce.300ms="syncSettings(true)"
                     placeholder="AIzaSy..."
-                    class="w-full bg-zinc-900/[0.03] dark:bg-zinc-800/80 border-2 border-zinc-200/80 dark:border-zinc-700/80  focus:border-brand dark:focus:border-brand-400 rounded-neo px-4 py-2.5 shadow-neo-inset dark:shadow-neo-inset-dark  text-xs font-mono text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500"
+                    class="w-full min-h-12 rounded-neo border-2 border-zinc-300 bg-white px-4 py-3 text-sm font-mono text-zinc-900 shadow-neo-inset outline-none transition-all placeholder-zinc-400 focus:border-brand focus:bg-white focus:ring-4 focus:ring-brand/10 dark:border-zinc-600 dark:bg-zinc-900/60 dark:text-zinc-100 dark:placeholder-zinc-500 dark:shadow-neo-inset-dark dark:focus:border-brand-400 dark:focus:bg-zinc-900 dark:focus:ring-brand-400/10"
                   >
-                  <p class="text-[11px] text-zinc-400 dark:text-zinc-500 leading-tight">用于切换 Gemini 2.5 Flash，隐藏设定提取更稳定、速度更快。</p>
+                  <p class="mt-2 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">用于切换 Gemini 2.5 Flash，隐藏设定提取更稳定、速度更快。</p>
                 </div>
               </div>
 
               <!-- Batch Settings -->
-              <div class="flex items-center gap-4 pt-2">
-                <span class="text-xs font-bold text-zinc-700 dark:text-zinc-300">批量并发数</span>
-                <input type="text"
-                       inputmode="numeric"
-                       pattern="[1-5]"
-                       x-model="defaultConcurrencyInput"
-                       @blur="commitDefaultConcurrency()"
-                       @keydown.enter.prevent="commitDefaultConcurrency(); $event.target.blur()"
-                       class="w-16 bg-zinc-900/[0.03] dark:bg-zinc-800/80 border-2 border-zinc-200/80 dark:border-zinc-700/80 rounded-neo px-3 py-2 text-sm text-center text-zinc-700 dark:text-zinc-200 outline-none   focus:border-brand dark:focus:border-brand-400">
-                <span class="text-xs text-zinc-400 dark:text-zinc-500">同时进行的请求数，范围 1-5</span>
-              </div>
+              ${getRangeControlHTML({
+                label: '批量并发数',
+                model: 'defaultConcurrencyInput',
+                min: 1,
+                max: 5,
+                step: 1,
+                commit: 'commitDefaultConcurrency()',
+                hint: '同时进行的请求数，范围 1-5',
+              })}
             </div>
           </div>
         </template>
@@ -649,18 +652,16 @@ function getFerryBatchInnerHTML() {
         ></textarea>
       </div>
       
-      <div class="flex items-center gap-6">
-        <div class="flex items-center gap-2">
-          <label class="text-xs text-zinc-600 dark:text-zinc-400">并发数:</label>
-              <input type="text"
-                     inputmode="numeric"
-                     pattern="[1-5]"
-                     x-model="concurrencyInput"
-                     @blur="commitConcurrency()"
-                     @keydown.enter.prevent="commitConcurrency(); $event.target.blur()"
-                     class="w-16 bg-zinc-900/[0.03] dark:bg-zinc-800/80 border-2 border-zinc-200/80 dark:border-zinc-700/80 rounded-neo px-3 py-1.5 text-xs text-center text-zinc-700 dark:text-zinc-200 outline-none   focus:border-brand dark:focus:border-brand-400">
-        </div>
-      </div>
+      ${getRangeControlHTML({
+        label: '并发数',
+        model: 'concurrencyInput',
+        min: 1,
+        max: 5,
+        step: 1,
+        commit: 'commitConcurrency()',
+        hint: '范围 1-5',
+        inputClass: 'range-value-input w-16 py-1.5 text-xs',
+      })}
       
       <template x-if="batchProgress">
         <div class="bg-brand-50 dark:bg-zinc-800/80 rounded-neo p-4">

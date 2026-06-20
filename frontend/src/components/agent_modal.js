@@ -488,7 +488,10 @@ export function agentModal() {
     },
 
     getSelectedReferenceTargetPath() {
-      const ref = this.selectedSkillReferenceDraft;
+      return this.getReferenceDraftTargetPath(this.selectedSkillReferenceDraft);
+    },
+
+    getReferenceDraftTargetPath(ref) {
       if (!ref) return '';
       return buildReferenceRelativePathFromName(ref.name || '');
     },
@@ -3057,17 +3060,17 @@ export function getAgentModalHTML() {
                         </div>
                         <div class="flex flex-wrap items-center gap-3">
                           <div x-show="isEntryDiffOpen(entry)" x-cloak class="flex flex-wrap items-center gap-3">
-                            <div class="flex items-center rounded-neo border border-zinc-200 dark:border-zinc-700 bg-white/80 dark:bg-zinc-900/70 overflow-hidden text-xs">
+                            <div class="flex items-center gap-1.5 rounded-full bg-zinc-900/[0.03] p-1 text-xs dark:bg-zinc-800/65">
                               <button @click="setDiffLayout('unified')"
-                                      class="px-2.5 py-1.5"
-                                      :class="diffLayout === 'unified' ? 'bg-brand dark:bg-brand-600 text-white shadow-inner' : 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/70'">统一</button>
+                                      class="pill-toggle px-2.5 py-1.5"
+                                      :class="diffLayout === 'unified' ? 'pill-toggle-active' : 'pill-toggle-inactive'">统一</button>
                               <button @click="setDiffLayout('split')"
-                                      class="px-2.5 py-1.5"
-                                      :class="diffLayout === 'split' ? 'bg-brand dark:bg-brand-600 text-white shadow-inner' : 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/70'">分屏</button>
+                                      class="pill-toggle px-2.5 py-1.5"
+                                      :class="diffLayout === 'split' ? 'pill-toggle-active' : 'pill-toggle-inactive'">分屏</button>
                             </div>
                             <button @click="diffFold = !diffFold"
-                                    class="px-2.5 py-1.5 text-xs rounded-neo border"
-                                    :class="diffFold ? 'bg-brand text-white border-brand shadow-sm' : 'border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100/70 dark:hover:bg-zinc-800/70'">
+                                    class="pill-toggle px-2.5 py-1.5 text-xs"
+                                    :class="diffFold ? 'pill-toggle-active' : 'pill-toggle-inactive'">
                               折叠未改行
                             </button>
                                      <div class="relative">
@@ -3319,85 +3322,145 @@ export function getAgentModalHTML() {
               </div>
             </div>
             <div x-show="skillManagerOpen" x-cloak class="fixed inset-0 z-82 flex items-center justify-center p-0 sm:p-6">
-              <div class="absolute inset-0 bg-zinc-900/50 dark:bg-zinc-950/70 backdrop-blur-sm" @click="closeSkillManager()"></div>
-              <div class="relative w-full max-w-6xl h-[100dvh] sm:h-[min(92vh,860px)] rounded-none sm:rounded-neo-lg border-0 sm:border border-zinc-200/80 dark:border-zinc-700/80 bg-white/95 dark:bg-zinc-900/95 shadow-none dark:shadow-none sm:shadow-neo-lift sm:dark:shadow-neo-lift-dark flex flex-col overflow-hidden">
-                <div class="px-5 py-3.5 border-b border-zinc-200/80 dark:border-zinc-700/80 bg-zinc-50/70 dark:bg-zinc-900/70 backdrop-blur-sm flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <h3 class="text-base font-semibold tracking-tight text-zinc-800 dark:text-zinc-100">技能管理</h3>
-                    <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">本地浏览器存储 · 编辑名称、描述、正文与参考文件</p>
-                  </div>
-                  <div class="flex flex-wrap items-center justify-end gap-2 w-full sm:w-auto">
-                    <input x-ref="skillTransferImportInput"
-                           type="file"
-                           class="hidden"
-                           accept=".md,.zip,text/markdown,application/zip,application/x-zip-compressed"
-                           @change="importSkillTransferFromInput($event)">
-                    <button @click="addSkillFromManager()"
-                            class="group btn-primary h-8 px-3 text-xs font-semibold">新增技能</button>
-                    <button @click="refreshSkillCatalog()"
-                            class="group btn-secondary h-8 px-3 text-xs font-medium">刷新列表</button>
-                    <button @click="openSkillTransferImportPicker()"
-                            :disabled="skillTransferBusy || skillManagerSaving"
-                            class="group btn-secondary h-8 px-3 text-xs font-medium"
-                            x-text="skillTransferBusy ? '处理中...' : '导入'"></button>
-                    <button @click="exportSelectedSkillTransfer()"
-                            :disabled="skillTransferBusy || skillManagerSaving || !hasSkillEditorSelection || skillManagerNewMode"
-                            class="group btn-secondary h-8 px-3 text-xs font-medium"
-                            x-text="skillTransferBusy ? '处理中...' : '导出'"></button>
-                    <button @click="closeSkillManager()"
-                            class="group btn-secondary h-8 px-3 text-xs font-medium">关闭</button>
+              <div class="absolute inset-0 bg-zinc-950/55 dark:bg-zinc-950/80 backdrop-blur-md" @click="closeSkillManager()"></div>
+              <div class="relative w-full max-w-7xl h-[100dvh] sm:h-[min(94vh,900px)] rounded-none sm:rounded-neo-lg border-0 sm:border border-zinc-200/80 dark:border-zinc-700/80 bg-zinc-100/95 dark:bg-zinc-950/95 shadow-none sm:shadow-neo-lift sm:dark:shadow-neo-lift-dark flex flex-col overflow-hidden">
+                <div class="relative overflow-hidden border-b border-zinc-200/80 dark:border-zinc-800/90 bg-white/90 dark:bg-zinc-900/90 px-4 py-4 sm:px-6 sm:py-5">
+                  <div class="absolute inset-y-0 right-0 w-1/2 bg-gradient-to-l from-brand-100/40 via-transparent to-transparent dark:from-brand-900/20 pointer-events-none"></div>
+                  <div class="relative flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                    <div class="min-w-0 space-y-3">
+                      <div class="flex flex-wrap items-center gap-2">
+                        <span class="inline-flex h-9 w-9 items-center justify-center rounded-neo bg-brand-100 text-brand-700 dark:bg-brand-900/40 dark:text-brand-200 shadow-sm">
+                          <svg class="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" />
+                          </svg>
+                        </span>
+                        <div>
+                          <h3 class="text-lg font-bold tracking-tight text-zinc-900 dark:text-zinc-50">技能工坊</h3>
+                          <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">管理本地浏览器技能，编辑描述、正文与参考资料</p>
+                        </div>
+                      </div>
+                      <div class="flex flex-wrap items-center gap-2 text-[11px] font-medium">
+                        <span class="inline-flex items-center gap-1.5 rounded-full border border-zinc-200/80 bg-zinc-50/90 px-2.5 py-1 text-zinc-600 dark:border-zinc-700/80 dark:bg-zinc-800/75 dark:text-zinc-300">
+                          <span class="h-1.5 w-1.5 rounded-full bg-brand-500"></span>
+                          <span x-text="skillCatalog.length + ' 个技能'"></span>
+                        </span>
+                        <span class="inline-flex items-center gap-1.5 rounded-full border border-brand-200/80 bg-brand-50 px-2.5 py-1 text-brand-700 dark:border-brand-800/70 dark:bg-brand-900/25 dark:text-brand-200">
+                          <span class="h-1.5 w-1.5 rounded-full bg-brand-500"></span>
+                          <span x-text="selectedSkillIds.length + ' 个启用'"></span>
+                        </span>
+                        <span x-show="hasSkillEditorSelection" x-cloak class="inline-flex items-center gap-1.5 rounded-full border border-zinc-200/80 bg-white/80 px-2.5 py-1 text-zinc-500 dark:border-zinc-700/80 dark:bg-zinc-900/80 dark:text-zinc-400">
+                          <span x-text="(skillEditorDraft.references?.length || 0) + ' 个参考文件'"></span>
+                        </span>
+                      </div>
+                    </div>
+                    <div class="relative flex flex-wrap items-center gap-2 xl:justify-end">
+                      <input x-ref="skillTransferImportInput"
+                             type="file"
+                             class="hidden"
+                             accept=".md,.zip,text/markdown,application/zip,application/x-zip-compressed"
+                             @change="importSkillTransferFromInput($event)">
+                      <button @click="addSkillFromManager()"
+                              class="group btn-primary h-9 gap-1.5 px-3.5 text-xs font-semibold">
+                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                        </svg>
+                        新增技能
+                      </button>
+                      <button @click="refreshSkillCatalog()"
+                              class="group btn-secondary h-9 gap-1.5 px-3 text-xs font-medium">
+                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                        </svg>
+                        刷新列表
+                      </button>
+                      <button @click="openSkillTransferImportPicker()"
+                              :disabled="skillTransferBusy || skillManagerSaving"
+                              class="group btn-secondary h-9 px-3 text-xs font-medium"
+                              x-text="skillTransferBusy ? '处理中...' : '导入'"></button>
+                      <button @click="exportSelectedSkillTransfer()"
+                              :disabled="skillTransferBusy || skillManagerSaving || !hasSkillEditorSelection || skillManagerNewMode"
+                              class="group btn-secondary h-9 px-3 text-xs font-medium"
+                              x-text="skillTransferBusy ? '处理中...' : '导出'"></button>
+                      <button @click="closeSkillManager()"
+                              class="btn-icon-ghost h-9 w-9 bg-white/80 dark:bg-zinc-900/80"
+                              title="关闭技能工坊">
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
                 </div>
 
-                <div class="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 gap-0">
-                  <div class="col-span-1 lg:col-span-3 border-b lg:border-b-0 lg:border-r border-zinc-200/80 dark:border-zinc-700/80 bg-zinc-50/75 dark:bg-zinc-950/35 min-h-0 max-h-56 lg:max-h-none flex flex-col">
+                <div class="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 gap-0 bg-zinc-100/90 dark:bg-zinc-950/80">
+                  <aside class="col-span-1 lg:col-span-4 xl:col-span-3 border-b lg:border-b-0 lg:border-r border-zinc-200/80 dark:border-zinc-800/90 bg-white/70 dark:bg-zinc-950/45 min-h-0 max-h-72 lg:max-h-none flex flex-col">
+                    <div class="px-4 py-3 border-b border-zinc-200/70 dark:border-zinc-800/80 bg-zinc-50/70 dark:bg-zinc-900/50">
+                      <div class="flex items-center justify-between gap-3">
+                        <div>
+                          <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-400 dark:text-zinc-500">Local Skills</p>
+                          <h4 class="mt-1 text-sm font-semibold text-zinc-800 dark:text-zinc-100">本地技能</h4>
+                        </div>
+                        <span class="rounded-full bg-zinc-100 px-2 py-1 text-[11px] font-semibold text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400" x-text="skillCatalog.length"></span>
+                      </div>
+                    </div>
                     <div class="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-3 space-y-2.5">
                       <div x-show="skillManagerNewMode"
-                           class="rounded-neo-lg border overflow-hidden duration-150 shadow-sm border-zinc-200/80 dark:border-zinc-700/80 bg-brand-50/45 dark:bg-brand-900/18 shadow-neo-lift dark:shadow-neo-lift-dark">
-                        <div class="w-full text-left px-3 py-2.5">
+                           class="rounded-neo-lg border border-brand-200/80 dark:border-brand-800/70 bg-brand-50/70 dark:bg-brand-900/20 shadow-neo-lift dark:shadow-neo-lift-dark overflow-hidden">
+                        <div class="px-3 py-3">
                           <div class="flex items-center justify-between gap-2">
-                            <span class="text-sm font-semibold text-zinc-700 dark:text-zinc-100 truncate" x-text="skillEditorDraft.id || '新技能'"></span>
-                            <span class="shrink-0 text-[10px] px-2 py-0.5 rounded-full bg-warning-light text-warning dark:bg-warning-dark dark:text-warning-light">新建</span>
+                            <span class="truncate text-sm font-semibold text-brand-800 dark:text-brand-100" x-text="skillEditorDraft.id || '新技能草稿'"></span>
+                            <span class="shrink-0 rounded-full bg-warning-light px-2 py-0.5 text-[10px] font-semibold text-warning dark:bg-warning-dark dark:text-warning-light">草稿中</span>
                           </div>
-                          <div class="mt-1 text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-400 line-clamp-2" x-text="skillEditorDraft.description || '请填写技能信息'"></div>
+                          <p class="mt-1.5 line-clamp-2 text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-400" x-text="skillEditorDraft.description || '填写名称、描述与正文后即可创建。'"></p>
                         </div>
                       </div>
                       <template x-for="skill in skillCatalog" :key="skill.id">
-                        <div class="rounded-neo-lg border overflow-hidden duration-150 shadow-sm"
-                             :class="!skillManagerNewMode && skillManagerSelectedId === skill.id
-                                ? 'border-zinc-200/80 dark:border-zinc-700/80 bg-brand-50/45 dark:bg-brand-900/18 shadow-neo-lift dark:shadow-neo-lift-dark'
-                                : 'border-zinc-200/80 dark:border-zinc-800/75 bg-white/90 dark:bg-zinc-900/90 hover:border-zinc-300/80 dark:hover:border-zinc-700/70'">
+                        <article class="group rounded-neo-lg border overflow-hidden transition-all duration-150"
+                                 :class="!skillManagerNewMode && skillManagerSelectedId === skill.id
+                                    ? 'border-brand-300/80 dark:border-brand-700/70 bg-brand-50/75 dark:bg-brand-900/18 shadow-neo-lift dark:shadow-neo-lift-dark'
+                                    : 'border-zinc-200/80 dark:border-zinc-800/80 bg-white/90 dark:bg-zinc-900/80 hover:border-zinc-300/90 dark:hover:border-zinc-700/80 hover:shadow-sm'">
                           <button @click="selectSkillForManager(skill.id)"
-                                  class="w-full text-left px-3 py-2.5 hover:bg-zinc-100/75 dark:hover:bg-zinc-800/60 transition-colors">
-                            <div class="flex items-center justify-between gap-2">
-                              <span class="text-sm font-semibold truncate"
-                                    :class="!skillManagerNewMode && skillManagerSelectedId === skill.id
-                                      ? 'text-brand-700 dark:text-brand-300'
-                                      : 'text-zinc-700 dark:text-zinc-100'"
-                                    x-text="skill.id"></span>
+                                  class="w-full text-left px-3 py-3 transition-colors hover:bg-zinc-50/80 dark:hover:bg-zinc-800/55">
+                            <div class="flex items-start justify-between gap-2">
+                              <div class="min-w-0">
+                                <p class="truncate text-sm font-semibold"
+                                   :class="!skillManagerNewMode && skillManagerSelectedId === skill.id
+                                      ? 'text-brand-800 dark:text-brand-200'
+                                      : 'text-zinc-800 dark:text-zinc-100'"
+                                   x-text="skill.id"></p>
+                                <p class="mt-1 line-clamp-2 text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-400" x-text="skill.description || '暂无描述'"></p>
+                              </div>
                               <span @click.stop="toggleSkill(skill.id)"
-                                    class="shrink-0 inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-medium border transition-colors cursor-pointer"
+                                    class="shrink-0 inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors cursor-pointer"
                                     :class="isSkillSelected(skill.id)
-                                      ? 'bg-brand-50 text-brand-700 border-brand-200 dark:bg-zinc-800 dark:text-zinc-200 dark:border-zinc-600'
-                                      : 'bg-zinc-100 text-zinc-500 border-zinc-200 dark:bg-zinc-700 dark:text-zinc-300 dark:border-zinc-600'">
+                                      ? 'border-brand-200 bg-brand-50 text-brand-700 dark:border-brand-700/80 dark:bg-brand-900/35 dark:text-brand-200'
+                                      : 'border-zinc-200 bg-zinc-100 text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400'">
                                 <span class="h-1.5 w-1.5 rounded-full"
                                       :class="isSkillSelected(skill.id)
-                                        ? 'bg-brand-600 dark:bg-brand-400'
+                                        ? 'bg-brand-600 dark:bg-brand-300'
                                         : 'bg-zinc-400 dark:bg-zinc-500'"></span>
-                                <span x-text="isSkillSelected(skill.id) ? '启用' : '未启用'"></span>
+                                <span x-text="isSkillSelected(skill.id) ? '已启用' : '未启用'"></span>
                               </span>
                             </div>
-                            <div class="mt-1 text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-400 line-clamp-2" x-text="skill.description"></div>
                           </button>
-                        </div>
+                        </article>
                       </template>
-                      <p x-show="!skillCatalog.length && !skillManagerNewMode" class="text-xs text-zinc-500 dark:text-zinc-400">暂无技能，请先新增。</p>
+                      <div x-show="!skillCatalog.length && !skillManagerNewMode" class="rounded-neo-lg border border-dashed border-zinc-300/80 dark:border-zinc-700/80 bg-white/60 dark:bg-zinc-900/55 p-5 text-center">
+                        <div class="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500">
+                          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                          </svg>
+                        </div>
+                        <p class="text-sm font-medium text-zinc-600 dark:text-zinc-300">暂无技能</p>
+                        <p class="mt-1 text-xs text-zinc-400 dark:text-zinc-500">点击“新增技能”创建第一条本地技能。</p>
+                      </div>
                     </div>
-                  </div>
+                  </aside>
 
-                  <div class="col-span-1 lg:col-span-9 min-h-0 flex flex-col">
+                  <section class="col-span-1 lg:col-span-8 xl:col-span-9 min-h-0 flex flex-col">
                     <template x-if="skillManagerError || skillManagerBusy">
-                      <div class="px-5 py-3 border-b border-zinc-200/80 dark:border-zinc-700/80 bg-white/65 dark:bg-zinc-900/55">
+                      <div class="mx-4 mt-4 rounded-neo border border-zinc-200/80 dark:border-zinc-800/80 bg-white/80 dark:bg-zinc-900/75 px-4 py-3 shadow-sm">
                         <p x-show="skillManagerError"
                            x-cloak
                            class="text-xs text-danger dark:text-danger-light"
@@ -3408,142 +3471,266 @@ export function getAgentModalHTML() {
                       </div>
                     </template>
 
-                    <div x-show="hasSkillEditorSelection" x-cloak class="flex-1 min-h-0 overflow-hidden p-4 sm:p-5 flex flex-col gap-4 bg-zinc-50/35 dark:bg-zinc-900/20">
-                      <div>
-                        <label class="block text-[11px] font-semibold tracking-wide text-zinc-600 dark:text-zinc-300 mb-1.5">名称</label>
-                        <input x-model="skillEditorDraft.id"
-                               class="w-full rounded-neo border-2 border-zinc-200/80 dark:border-zinc-700/80 bg-zinc-900/[0.03] dark:bg-zinc-800/80 px-3 py-2 text-sm text-zinc-700 dark:text-zinc-100  placeholder:text-zinc-400 dark:placeholder:text-zinc-500   focus:border-brand dark:focus:border-brand-400"
-                               placeholder="技能名称">
+                    <div x-show="hasSkillEditorSelection" x-cloak class="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-4 sm:p-5 space-y-4">
+                      <div class="rounded-neo-lg border border-zinc-200/80 dark:border-zinc-800/80 bg-white/90 dark:bg-zinc-900/80 shadow-sm overflow-hidden">
+                        <div class="border-b border-zinc-200/70 dark:border-zinc-800/80 px-4 py-3 sm:px-5">
+                          <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                              <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-400 dark:text-zinc-500">Profile</p>
+                              <h4 class="mt-1 text-sm font-semibold text-zinc-800 dark:text-zinc-100">基础信息</h4>
+                            </div>
+                            <span class="rounded-full border border-zinc-200/80 bg-zinc-50 px-2.5 py-1 text-[11px] font-medium text-zinc-500 dark:border-zinc-700/80 dark:bg-zinc-800/70 dark:text-zinc-400" x-text="skillEditorTargetPath || '等待命名'"></span>
+                          </div>
+                        </div>
+                        <div class="grid gap-4 p-4 sm:p-5 lg:grid-cols-5">
+                          <div class="lg:col-span-2">
+                            <label class="mb-1.5 block text-[11px] font-semibold tracking-wide text-zinc-600 dark:text-zinc-300">技能名称</label>
+                            <input x-model="skillEditorDraft.id"
+                                   class="w-full rounded-neo border border-zinc-200/80 dark:border-zinc-700/80 bg-zinc-50/80 dark:bg-zinc-950/45 px-3 py-2.5 text-sm font-semibold text-zinc-800 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 outline-none transition-colors focus:border-brand dark:focus:border-brand-400 focus:bg-white dark:focus:bg-zinc-900"
+                                   placeholder="例如：frontend-presentation-optimizer">
+                            <p class="mt-1.5 text-[11px] leading-relaxed text-zinc-400 dark:text-zinc-500">支持中英文、数字、空格、下划线与中划线。</p>
+                          </div>
+                          <div class="lg:col-span-3">
+                            <label class="mb-1.5 block text-[11px] font-semibold tracking-wide text-zinc-600 dark:text-zinc-300">技能描述</label>
+                            <textarea x-model="skillEditorDraft.description"
+                                      rows="3"
+                                      class="w-full rounded-neo border border-zinc-200/80 dark:border-zinc-700/80 bg-zinc-50/80 dark:bg-zinc-950/45 px-3 py-2.5 text-sm leading-6 text-zinc-700 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 outline-none transition-colors focus:border-brand dark:focus:border-brand-400 focus:bg-white dark:focus:bg-zinc-900 resize-y"
+                                      placeholder="说明这个技能适合什么场景、会如何辅助回复"></textarea>
+                          </div>
+                        </div>
                       </div>
 
-                      <div>
-                        <label class="block text-[11px] font-semibold tracking-wide text-zinc-600 dark:text-zinc-300 mb-1.5">描述</label>
-                        <textarea x-model="skillEditorDraft.description"
-                                  rows="2"
-                                  class="w-full rounded-neo border-2 border-zinc-200/80 dark:border-zinc-700/80 bg-zinc-900/[0.03] dark:bg-zinc-800/80 px-3 py-2 text-sm text-zinc-700 dark:text-zinc-100  placeholder:text-zinc-400 dark:placeholder:text-zinc-500   focus:border-brand dark:focus:border-brand-400 resize-y"
-                                  placeholder="技能描述"></textarea>
+                      <div class="rounded-neo-lg border border-zinc-200/80 dark:border-zinc-800/80 bg-white/90 dark:bg-zinc-900/80 shadow-sm overflow-hidden">
+                        <div class="flex flex-col gap-2 border-b border-zinc-200/70 dark:border-zinc-800/80 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+                          <div>
+                            <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-400 dark:text-zinc-500">Markdown</p>
+                            <h4 class="mt-1 text-sm font-semibold text-zinc-800 dark:text-zinc-100">技能正文</h4>
+                          </div>
+                          <span class="rounded-full border border-zinc-200/80 bg-zinc-50 px-2.5 py-1 text-[11px] font-medium text-zinc-500 dark:border-zinc-700/80 dark:bg-zinc-800/70 dark:text-zinc-400" x-text="String(skillEditorDraft.content || '').split('\n').length + ' 行'"></span>
+                        </div>
+                        <div class="p-4 sm:p-5">
+                          <textarea x-model="skillEditorDraft.content"
+                                    class="min-h-[18rem] h-[38vh] w-full rounded-neo border border-zinc-200/80 dark:border-zinc-700/80 bg-zinc-950/[0.03] dark:bg-zinc-950/55 px-4 py-3 text-sm font-mono leading-6 text-zinc-700 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 outline-none transition-colors focus:border-brand dark:focus:border-brand-400 focus:bg-white dark:focus:bg-zinc-950 resize-none custom-scrollbar"
+                                    placeholder="填写技能正文内容。建议按 When to use / Must do / Must not do 组织。"></textarea>
+                        </div>
                       </div>
 
-                      <div class="flex-1 flex flex-col min-h-0">
-                        <label class="block text-[11px] font-semibold tracking-wide text-zinc-600 dark:text-zinc-300 mb-1.5">技能正文</label>
-                        <textarea x-model="skillEditorDraft.content"
-                                  class="flex-1 w-full min-h-[12rem] rounded-neo border-2 border-zinc-200/80 dark:border-zinc-700/80 bg-zinc-900/[0.03] dark:bg-zinc-800/80 px-3 py-2 text-sm font-mono text-zinc-700 dark:text-zinc-100  placeholder:text-zinc-400 dark:placeholder:text-zinc-500   focus:border-brand dark:focus:border-brand-400 resize-none"
-                                  placeholder="填写技能正文内容"></textarea>
-                      </div>
-
-                      <div class="rounded-neo-lg border border-zinc-200/90 dark:border-zinc-700/80 bg-white/70 dark:bg-zinc-900/55 p-3.5 shadow-sm">
-                        <div class="flex items-center justify-between gap-2">
-                          <div class="flex items-center gap-2">
-                            <svg class="w-4 h-4 text-zinc-500 dark:text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                              <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-                            </svg>
-                            <span class="text-xs font-semibold text-zinc-700 dark:text-zinc-200">参考文件</span>
-                            <span class="text-[11px] text-zinc-500 dark:text-zinc-400" x-text="'(' + (skillEditorDraft.references?.length || 0) + ')'"></span>
+                      <div class="rounded-neo-lg border border-zinc-200/80 dark:border-zinc-800/80 bg-white/90 dark:bg-zinc-900/80 p-4 shadow-sm sm:p-5">
+                        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div class="flex min-w-0 items-start gap-3">
+                            <span class="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-neo bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-300">
+                              <svg class="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                              </svg>
+                            </span>
+                            <div class="min-w-0">
+                              <h4 class="text-sm font-semibold text-zinc-800 dark:text-zinc-100">参考文件</h4>
+                              <p class="mt-1 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">为技能补充可复用资料片段；保存时会同步写入对应 references 文件。</p>
+                              <div class="mt-2 flex flex-wrap gap-1.5">
+                                <span class="rounded-full border border-zinc-200/80 bg-zinc-50 px-2 py-0.5 text-[11px] font-medium text-zinc-500 dark:border-zinc-700/80 dark:bg-zinc-800/70 dark:text-zinc-400" x-text="(skillEditorDraft.references?.length || 0) + ' 个引用'"></span>
+                              </div>
+                            </div>
                           </div>
                           <button @click="openSkillReferenceManager()"
-                                  class="btn-secondary h-7 px-3 text-[11px] font-medium">管理参考文件</button>
+                                  class="btn-secondary h-9 shrink-0 gap-1.5 px-3.5 text-xs font-semibold">
+                            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487 18.55 2.8a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 7.125 16.875 4.5" />
+                            </svg>
+                            管理参考资料
+                          </button>
                         </div>
                       </div>
                     </div>
 
-                    <div x-show="!hasSkillEditorSelection" x-cloak class="flex-1 min-h-0 flex items-center justify-center text-sm text-zinc-500 dark:text-zinc-400">
-                      从左侧选择一个技能开始编辑。
+                    <div x-show="!hasSkillEditorSelection" x-cloak class="flex-1 min-h-0 flex items-center justify-center p-6">
+                      <div class="max-w-sm rounded-neo-lg border border-dashed border-zinc-300/80 dark:border-zinc-700/80 bg-white/70 dark:bg-zinc-900/60 p-8 text-center shadow-sm">
+                        <div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500">
+                          <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75zm0 5.25h.007v.008H3.75V12zm0 5.25h.007v.008H3.75v-.008z" />
+                          </svg>
+                        </div>
+                        <p class="text-sm font-semibold text-zinc-700 dark:text-zinc-200">选择一个技能开始编辑</p>
+                        <p class="mt-1 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">也可以点击“新增技能”创建新的本地技能草稿。</p>
+                      </div>
                     </div>
 
-                    <div class="px-5 py-3 border-t border-zinc-200/80 dark:border-zinc-700/80 bg-zinc-50/70 dark:bg-zinc-900/70 backdrop-blur-sm flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div class="border-t border-zinc-200/80 dark:border-zinc-800/90 bg-white/90 dark:bg-zinc-900/90 px-4 py-3 sm:px-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <button @click="deleteSelectedSkillFromManager()"
                               :disabled="!hasSkillEditorSelection || skillManagerSaving"
-                              class="btn-danger h-8 w-full sm:w-auto px-3 text-xs font-medium"
+                              class="btn-danger h-9 w-full sm:w-auto px-3.5 text-xs font-semibold"
                               x-text="skillManagerNewMode ? '取消新建' : '删除技能'"></button>
                       <div class="flex items-center gap-2 w-full sm:w-auto">
                         <button @click="saveSkillManagerDraft()"
                                 :disabled="!hasSkillEditorSelection || skillManagerSaving"
-                                class="btn-primary h-8 w-full sm:w-auto px-3 text-xs font-semibold">
+                                class="btn-primary h-9 w-full sm:w-auto px-4 text-xs font-semibold">
                           <span x-text="skillManagerSaving ? '保存中...' : (skillManagerNewMode ? '创建技能' : '保存修改')"></span>
                         </button>
                       </div>
                     </div>
-                  </div>
+                  </section>
                 </div>
               </div>
             </div>
             <div x-show="skillReferenceManagerOpen" x-cloak class="fixed inset-0 z-83 flex items-center justify-center p-0 sm:p-6">
-              <div class="absolute inset-0 bg-zinc-900/50 dark:bg-zinc-950/70 backdrop-blur-sm" @click="closeSkillReferenceManager()"></div>
-              <div class="relative w-full max-w-6xl h-[100dvh] sm:h-[min(92vh,860px)] rounded-none sm:rounded-neo-lg border-0 sm:border border-zinc-200/80 dark:border-zinc-700/80 bg-white/95 dark:bg-zinc-900/95 shadow-none dark:shadow-none sm:shadow-neo-lift sm:dark:shadow-neo-lift-dark flex flex-col overflow-hidden">
-                <div class="px-5 py-3.5 border-b border-zinc-200/80 dark:border-zinc-700/80 bg-zinc-50/70 dark:bg-zinc-900/70 backdrop-blur-sm flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <h3 class="text-base font-semibold tracking-tight text-zinc-800 dark:text-zinc-100">参考文件管理</h3>
-                    <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5" x-text="skillEditorDraft.id || '新技能'"></p>
-                  </div>
-                  <div class="flex flex-wrap items-center justify-end gap-2 w-full sm:w-auto">
-                    <button @click="addSkillReferenceDraft()"
-                            class="group btn-primary h-8 px-3 text-xs font-semibold">新增参考文件</button>
-                    <button @click="closeSkillReferenceManager()"
-                            class="group btn-secondary h-8 px-3 text-xs font-medium">关闭</button>
+              <div class="absolute inset-0 bg-zinc-950/55 dark:bg-zinc-950/80 backdrop-blur-md" @click="closeSkillReferenceManager()"></div>
+              <div class="relative w-full max-w-6xl h-[100dvh] sm:h-[min(92vh,860px)] rounded-none sm:rounded-neo-lg border-0 sm:border border-zinc-200/80 dark:border-zinc-700/80 bg-zinc-100/95 dark:bg-zinc-950/95 shadow-none sm:shadow-neo-lift sm:dark:shadow-neo-lift-dark flex flex-col overflow-hidden">
+                <div class="relative overflow-hidden border-b border-zinc-200/80 dark:border-zinc-800/90 bg-white/90 dark:bg-zinc-900/90 px-4 py-4 sm:px-6 sm:py-5">
+                  <div class="absolute inset-y-0 right-0 w-1/2 bg-gradient-to-l from-brand-100/40 via-transparent to-transparent dark:from-brand-900/20 pointer-events-none"></div>
+                  <div class="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div class="min-w-0 space-y-3">
+                      <div class="flex items-center gap-2">
+                        <span class="inline-flex h-9 w-9 items-center justify-center rounded-neo bg-brand-100 text-brand-700 dark:bg-brand-900/40 dark:text-brand-200 shadow-sm">
+                          <svg class="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                          </svg>
+                        </span>
+                        <div>
+                          <h3 class="text-lg font-bold tracking-tight text-zinc-900 dark:text-zinc-50">参考资料库</h3>
+                          <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">为「<span x-text="skillEditorDraft.id || '新技能'"></span>」维护本地参考文件</p>
+                        </div>
+                      </div>
+                      <div class="flex flex-wrap items-center gap-2 text-[11px] font-medium">
+                        <span class="inline-flex items-center gap-1.5 rounded-full border border-zinc-200/80 bg-zinc-50/90 px-2.5 py-1 text-zinc-600 dark:border-zinc-700/80 dark:bg-zinc-800/75 dark:text-zinc-300">
+                          <span class="h-1.5 w-1.5 rounded-full bg-brand-500"></span>
+                          <span x-text="skillReferenceEditorItems.length + ' 个文件'"></span>
+                        </span>
+                        <span x-show="selectedSkillReferenceDraft" x-cloak class="inline-flex items-center gap-1.5 rounded-full border border-zinc-200/80 bg-white/80 px-2.5 py-1 text-zinc-500 dark:border-zinc-700/80 dark:bg-zinc-900/80 dark:text-zinc-400" x-text="getSelectedReferenceTargetPath() || '等待命名'"></span>
+                      </div>
+                    </div>
+                    <div class="relative flex flex-wrap items-center gap-2 sm:justify-end">
+                      <button @click="addSkillReferenceDraft()"
+                              class="group btn-primary h-9 gap-1.5 px-3.5 text-xs font-semibold">
+                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                        </svg>
+                        新增参考文件
+                      </button>
+                      <button @click="closeSkillReferenceManager()"
+                              class="btn-icon-ghost h-9 w-9 bg-white/80 dark:bg-zinc-900/80"
+                              title="关闭参考资料库">
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
                 </div>
 
-                <div class="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 gap-0">
-                  <div class="col-span-1 lg:col-span-3 border-b lg:border-b-0 lg:border-r border-zinc-200/80 dark:border-zinc-700/80 bg-zinc-50/75 dark:bg-zinc-950/35 min-h-0 max-h-56 lg:max-h-none flex flex-col">
+                <div class="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 gap-0 bg-zinc-100/90 dark:bg-zinc-950/80">
+                  <aside class="col-span-1 lg:col-span-4 xl:col-span-3 border-b lg:border-b-0 lg:border-r border-zinc-200/80 dark:border-zinc-800/90 bg-white/70 dark:bg-zinc-950/45 min-h-0 max-h-72 lg:max-h-none flex flex-col">
+                    <div class="px-4 py-3 border-b border-zinc-200/70 dark:border-zinc-800/80 bg-zinc-50/70 dark:bg-zinc-900/50">
+                      <div class="flex items-center justify-between gap-3">
+                        <div>
+                          <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-400 dark:text-zinc-500">References</p>
+                          <h4 class="mt-1 text-sm font-semibold text-zinc-800 dark:text-zinc-100">引用索引</h4>
+                        </div>
+                        <span class="rounded-full bg-zinc-100 px-2 py-1 text-[11px] font-semibold text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400" x-text="skillReferenceEditorItems.length"></span>
+                      </div>
+                    </div>
                     <div class="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-3 space-y-2.5">
                       <template x-for="(ref, index) in skillReferenceEditorItems" :key="ref.uid">
-                        <div class="rounded-neo-lg border overflow-hidden duration-150 shadow-sm"
-                             :class="skillReferenceSelectedIndex === index
-                                ? 'border-zinc-200/80 dark:border-zinc-700/80 bg-brand-50/45 dark:bg-brand-900/18 shadow-neo-lift dark:shadow-neo-lift-dark'
-                                : 'border-zinc-200/80 dark:border-zinc-800/75 bg-white/90 dark:bg-zinc-900/90 hover:border-zinc-300/80 dark:hover:border-zinc-700/70'">
+                        <article class="group rounded-neo-lg border overflow-hidden transition-all duration-150"
+                                 :class="skillReferenceSelectedIndex === index
+                                    ? 'border-brand-300/80 dark:border-brand-700/70 bg-brand-50/75 dark:bg-brand-900/18 shadow-neo-lift dark:shadow-neo-lift-dark'
+                                    : 'border-zinc-200/80 dark:border-zinc-800/80 bg-white/90 dark:bg-zinc-900/80 hover:border-zinc-300/90 dark:hover:border-zinc-700/80 hover:shadow-sm'">
                           <button @click="selectSkillReferenceDraft(index)"
-                                  class="w-full text-left px-3 py-2.5 hover:bg-zinc-100/75 dark:hover:bg-zinc-800/60 transition-colors">
-                            <span class="text-sm font-semibold truncate block"
-                                  :class="skillReferenceSelectedIndex === index
-                                    ? 'text-brand-700 dark:text-brand-300'
-                                    : 'text-zinc-700 dark:text-zinc-100'"
-                                  x-text="ref.name || '未命名参考文件'"></span>
+                                  class="w-full text-left px-3 py-3 transition-colors hover:bg-zinc-50/80 dark:hover:bg-zinc-800/55">
+                            <div class="flex items-start justify-between gap-2">
+                              <div class="min-w-0">
+                                <p class="truncate text-sm font-semibold"
+                                   :class="skillReferenceSelectedIndex === index
+                                      ? 'text-brand-800 dark:text-brand-200'
+                                      : 'text-zinc-800 dark:text-zinc-100'"
+                                   x-text="ref.name || '未命名参考文件'"></p>
+                                <p class="mt-1 truncate text-[11px] text-zinc-400 dark:text-zinc-500" x-text="getReferenceDraftTargetPath(ref) || 'references/未命名.md'"></p>
+                              </div>
+                              <span x-show="ref.error" x-cloak class="shrink-0 rounded-full bg-warning-light px-2 py-0.5 text-[10px] font-semibold text-warning dark:bg-warning-dark dark:text-warning-light">需检查</span>
+                            </div>
                           </button>
-                        </div>
+                        </article>
                       </template>
-                      <p x-show="!skillReferenceEditorItems.length" class="text-xs text-zinc-500 dark:text-zinc-400">暂无参考文件，请先新增。</p>
-                    </div>
-                  </div>
-
-                  <div class="col-span-1 lg:col-span-9 min-h-0 flex flex-col">
-                    <div x-show="selectedSkillReferenceDraft" x-cloak class="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-4 sm:p-5 space-y-4 bg-zinc-50/35 dark:bg-zinc-900/20">
-                      <div>
-                        <label class="block text-[11px] font-semibold tracking-wide text-zinc-600 dark:text-zinc-300 mb-1.5">参考文件名称</label>
-                        <input x-model="selectedSkillReferenceDraft.name"
-                               @input="syncSelectedReferenceName()"
-                               class="w-full rounded-neo border-2 border-zinc-200/80 dark:border-zinc-700/80 bg-zinc-900/[0.03] dark:bg-zinc-800/80 px-3 py-2 text-sm text-zinc-700 dark:text-zinc-100  placeholder:text-zinc-400 dark:placeholder:text-zinc-500   focus:border-brand dark:focus:border-brand-400"
-                               placeholder="例如：背景设定">
-                        <p x-show="selectedSkillReferenceDraft?.error"
-                           x-cloak
-                           class="mt-1.5 text-xs text-warning dark:text-warning-light"
-                           x-text="selectedSkillReferenceDraft?.error"></p>
-                      </div>
-
-                      <div class="flex-1">
-                        <label class="block text-[11px] font-semibold tracking-wide text-zinc-600 dark:text-zinc-300 mb-1.5">参考文件内容</label>
-                        <textarea x-model="selectedSkillReferenceDraft.content"
-                                  rows="24"
-                                  class="w-full min-h-[18rem] sm:min-h-[32rem] rounded-neo border-2 border-zinc-200/80 dark:border-zinc-700/80 bg-zinc-900/[0.03] dark:bg-zinc-800/80 px-3 py-2 text-sm font-mono text-zinc-700 dark:text-zinc-100  placeholder:text-zinc-400 dark:placeholder:text-zinc-500   focus:border-brand dark:focus:border-brand-400 resize-y"
-                                  placeholder="填写参考文件内容"></textarea>
+                      <div x-show="!skillReferenceEditorItems.length" class="rounded-neo-lg border border-dashed border-zinc-300/80 dark:border-zinc-700/80 bg-white/60 dark:bg-zinc-900/55 p-5 text-center">
+                        <div class="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500">
+                          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                          </svg>
+                        </div>
+                        <p class="text-sm font-medium text-zinc-600 dark:text-zinc-300">暂无参考文件</p>
+                        <p class="mt-1 text-xs text-zinc-400 dark:text-zinc-500">新增后可在技能正文中引用。</p>
                       </div>
                     </div>
+                  </aside>
 
-                    <div x-show="!selectedSkillReferenceDraft" x-cloak class="flex-1 min-h-0 flex items-center justify-center text-sm text-zinc-500 dark:text-zinc-400">
-                      从左侧选择一个参考文件开始编辑。
+                  <section class="col-span-1 lg:col-span-8 xl:col-span-9 min-h-0 flex flex-col">
+                    <div x-show="selectedSkillReferenceDraft" x-cloak class="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-4 sm:p-5 space-y-4">
+                      <div class="rounded-neo-lg border border-zinc-200/80 dark:border-zinc-800/80 bg-white/90 dark:bg-zinc-900/80 shadow-sm overflow-hidden">
+                        <div class="border-b border-zinc-200/70 dark:border-zinc-800/80 px-4 py-3 sm:px-5">
+                          <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                              <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-400 dark:text-zinc-500">Reference File</p>
+                              <h4 class="mt-1 text-sm font-semibold text-zinc-800 dark:text-zinc-100">文件信息</h4>
+                            </div>
+                            <span class="rounded-full border border-zinc-200/80 bg-zinc-50 px-2.5 py-1 text-[11px] font-medium text-zinc-500 dark:border-zinc-700/80 dark:bg-zinc-800/70 dark:text-zinc-400" x-text="getSelectedReferenceTargetPath() || '等待命名'"></span>
+                          </div>
+                        </div>
+                        <div class="p-4 sm:p-5">
+                          <label class="mb-1.5 block text-[11px] font-semibold tracking-wide text-zinc-600 dark:text-zinc-300">参考文件名称</label>
+                          <input x-model="selectedSkillReferenceDraft.name"
+                                 @input="syncSelectedReferenceName()"
+                                 class="w-full rounded-neo border border-zinc-200/80 dark:border-zinc-700/80 bg-zinc-50/80 dark:bg-zinc-950/45 px-3 py-2.5 text-sm font-semibold text-zinc-800 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 outline-none transition-colors focus:border-brand dark:focus:border-brand-400 focus:bg-white dark:focus:bg-zinc-900"
+                                 placeholder="例如：背景设定">
+                          <div class="mt-2 flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
+                            <p class="text-[11px] leading-relaxed text-zinc-400 dark:text-zinc-500">保存时会自动生成标题行，并写入当前技能的 references 目录。</p>
+                            <p x-show="selectedSkillReferenceDraft?.error"
+                               x-cloak
+                               class="text-xs text-warning dark:text-warning-light"
+                               x-text="selectedSkillReferenceDraft?.error"></p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="rounded-neo-lg border border-zinc-200/80 dark:border-zinc-800/80 bg-white/90 dark:bg-zinc-900/80 shadow-sm overflow-hidden">
+                        <div class="flex flex-col gap-2 border-b border-zinc-200/70 dark:border-zinc-800/80 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+                          <div>
+                            <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-400 dark:text-zinc-500">Markdown</p>
+                            <h4 class="mt-1 text-sm font-semibold text-zinc-800 dark:text-zinc-100">参考文件内容</h4>
+                          </div>
+                          <span class="rounded-full border border-zinc-200/80 bg-zinc-50 px-2.5 py-1 text-[11px] font-medium text-zinc-500 dark:border-zinc-700/80 dark:bg-zinc-800/70 dark:text-zinc-400" x-text="String(selectedSkillReferenceDraft?.content || '').split('\n').length + ' 行'"></span>
+                        </div>
+                        <div class="p-4 sm:p-5">
+                          <textarea x-model="selectedSkillReferenceDraft.content"
+                                    rows="24"
+                                    class="min-h-[22rem] h-[48vh] w-full rounded-neo border border-zinc-200/80 dark:border-zinc-700/80 bg-zinc-950/[0.03] dark:bg-zinc-950/55 px-4 py-3 text-sm font-mono leading-6 text-zinc-700 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 outline-none transition-colors focus:border-brand dark:focus:border-brand-400 focus:bg-white dark:focus:bg-zinc-950 resize-none custom-scrollbar"
+                                    placeholder="填写参考文件内容，例如风格规范、示例格式、渲染安全规则等。"></textarea>
+                        </div>
+                      </div>
                     </div>
 
-                    <div class="px-5 py-3 border-t border-zinc-200/80 dark:border-zinc-700/80 bg-zinc-50/70 dark:bg-zinc-900/70 backdrop-blur-sm flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div x-show="!selectedSkillReferenceDraft" x-cloak class="flex-1 min-h-0 flex items-center justify-center p-6">
+                      <div class="max-w-sm rounded-neo-lg border border-dashed border-zinc-300/80 dark:border-zinc-700/80 bg-white/70 dark:bg-zinc-900/60 p-8 text-center shadow-sm">
+                        <div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500">
+                          <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                          </svg>
+                        </div>
+                        <p class="text-sm font-semibold text-zinc-700 dark:text-zinc-200">选择一个参考文件</p>
+                        <p class="mt-1 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">或点击“新增参考文件”建立新的资料片段。</p>
+                      </div>
+                    </div>
+
+                    <div class="border-t border-zinc-200/80 dark:border-zinc-800/90 bg-white/90 dark:bg-zinc-900/90 px-4 py-3 sm:px-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <button @click="requestDeleteSkillReferenceDraft(skillReferenceSelectedIndex)"
                                :disabled="!selectedSkillReferenceDraft"
-                               class="btn-danger h-8 w-full sm:w-auto px-3 text-xs font-medium">删除参考文件</button>
+                               class="btn-danger h-9 w-full sm:w-auto px-3.5 text-xs font-semibold">删除参考文件</button>
                       <div class="flex items-center w-full sm:w-auto">
                         <button @click="saveSkillReferenceManagerDraft()"
                                 :disabled="skillReferenceSaving"
-                                class="btn-primary h-8 w-full sm:w-auto px-3 text-xs font-semibold"
+                                class="btn-primary h-9 w-full sm:w-auto px-4 text-xs font-semibold"
                                 x-text="skillReferenceSaving ? '保存中...' : '保存修改'"></button>
                       </div>
                     </div>
-                  </div>
+                  </section>
                 </div>
               </div>
             </div>

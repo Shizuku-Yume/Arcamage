@@ -69,9 +69,12 @@ backend/static/
 
 # Development documents (archived)
 .dev-docs/
+dev-docs/
 
 # AI Agent documentation (auto-generated)
 AGENTS.md
 **/AGENTS.md
 agents.md
 **/agents.md
+CLAUDE.md
+**/CLAUDE.md

@@ -1,4 +1,5 @@
 import Alpine from 'alpinejs';
+import { getRangeControlHTML } from './range_control.js';
 
 export function ferryBatch() {
   return {
@@ -29,7 +30,22 @@ export function ferryBatch() {
     get error() {
       return this.ferryStore.batchError;
     },
-    
+
+    get defaultConcurrencyInput() {
+      return String(this.ferryStore.defaultConcurrency ?? 3);
+    },
+
+    set defaultConcurrencyInput(value) {
+      this.ferryStore.defaultConcurrency = value;
+    },
+
+    commitDefaultConcurrency() {
+      const parsed = Number(this.ferryStore.defaultConcurrency);
+      const clamped = Math.min(5, Math.max(1, Number.isFinite(parsed) ? Math.round(parsed) : 3));
+      this.ferryStore.defaultConcurrency = clamped;
+      this.ferryStore.save();
+    },
+
     get parsedUrls() {
       return this.ferryStore.parseBatchUrls(this.urlsText);
     },
@@ -77,17 +93,16 @@ export function getFerryBatchHTML() {
       </div>
 
       <!-- 并发数设置 -->
-      <div class="flex items-center gap-3">
-        <span class="text-xs text-zinc-600 dark:text-zinc-400">同时进行的请求数</span>
-        <input type="text"
-               inputmode="numeric"
-               pattern="[1-5]"
-               :value="$store.ferry.defaultConcurrency"
-               @blur="$store.ferry.defaultConcurrency = Math.min(5, Math.max(1, Number($event.target.value) || 3)); $store.ferry.save()"
-               @keydown.enter.prevent="$store.ferry.defaultConcurrency = Math.min(5, Math.max(1, Number($event.target.value) || 3)); $store.ferry.save(); $event.target.blur()"
-               class="w-14 bg-zinc-900/[0.03] dark:bg-zinc-800/80 border-2 border-zinc-200/80 dark:border-zinc-700/80 rounded-neo px-2 py-1.5 text-sm text-center text-zinc-700 dark:text-zinc-200 outline-none   focus:border-brand dark:focus:border-brand-400">
-        <span class="text-xs text-zinc-400 dark:text-zinc-500">范围 1-5</span>
-      </div>
+      ${getRangeControlHTML({
+        label: '同时进行的请求数',
+        model: 'defaultConcurrencyInput',
+        min: 1,
+        max: 5,
+        step: 1,
+        commit: 'commitDefaultConcurrency()',
+        hint: '范围 1-5',
+        inputClass: 'range-value-input w-16 py-1.5 text-xs',
+      })}
       
       <div x-show="batchProgress"
            x-transition:enter="transition ease-out duration-250"
